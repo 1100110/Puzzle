@@ -352,10 +352,6 @@ void main() {
 	StopWatch sw1, sw2;
 	sw1.start();
 	
-	// D:/D/dmd2/src/phobos/std/datetime.d
-	// rvalue_ref_model.d
-	//File f = File("D:/D/dmd2/src/phobos/std/datetime.d", "r");
-	
 	version (Test) {
 		string text = readText("rvalue_ref_model.d");
 	} else {
@@ -386,18 +382,17 @@ void main() {
 			}
 		}
 		
-		// ignore single comment
-		if (!ignore && text[i] == '/' && text[i + 1] == '/') {
+		if (!ignore && text[i] == '/' && text[i + 1] == '/') { // ignore single comment
 			ignore = true;
 			ctype = Comment.Line;
 			
 			i += 2;
-		} else if (!ignore && text[i] == '/' && text[i + 1] == '*') {
+		} else if (!ignore && text[i] == '/' && text[i + 1] == '*') { // ignore multi line comments
 			ignore = true;
 			ctype = Comment.Star;
 			
 			i += 2;
-		} else if (!ignore && text[i] == '/' && text[i + 1] == '+') {
+		} else if (!ignore && text[i] == '/' && text[i + 1] == '+') { // ignore multi line comments
 			ignore = true;
 			ctype = Comment.Plus;
 			
@@ -413,7 +408,7 @@ void main() {
 					case '=': toks ~= Token(TokType.BitAndAssign, line, i); break;
 					default:
 						toks ~= Token(TokType.BitAnd, line, i);
-						--i; // Because we read one char too much.
+						--i; // Because we have read a character too much.
 				}
 			break;
 			
@@ -423,7 +418,7 @@ void main() {
 					case '=': toks ~= Token(TokType.BitOrAssign, line, i); break;
 					default:
 						toks ~= Token(TokType.BitOr, line, i);
-						--i; // Because we read one char too much.
+						--i; // Because we have read a character too much.
 				}
 			break;
 			
@@ -433,7 +428,7 @@ void main() {
 					case '=': toks ~= Token(TokType.Equals, line, i); break;
 					default:
 						toks ~= Token(TokType.Assign, line, i);
-						--i; // Because we read one char too much.
+						--i; // Because we have read a character too much.
 				}
 			break;
 			
@@ -468,7 +463,7 @@ void main() {
 					case '=': toks ~= Token(TokType.PlusAssign, line, i); break;
 					default:
 						toks ~= Token(TokType.Plus, line, i);
-						--i; // Because we read one char too much.
+						--i; // Because we have read a character too much.
 				}
 			break;
 			
@@ -478,7 +473,7 @@ void main() {
 					case '=': toks ~= Token(TokType.MinusAssign, line, i); break;
 					default:
 						toks ~= Token(TokType.Minus, line, i);
-						--i; // Because we read one char too much.
+						--i; // Because we have read a character too much.
 				}
 			break;
 			
@@ -516,7 +511,7 @@ void main() {
 						}
 					break;
 					default:
-						--i; // Because we read one char too much.
+						--i; // Because we have read a character too much.
 						if (isNext(text, &i, '=')) {
 							toks ~= Token(TokType.XorAssign, line, i);
 						} else {
@@ -560,7 +555,7 @@ void main() {
 					break;
 					default:
 						toks ~= Token(TokType.Greater, line, i);
-						--i; // Because we read one char too much.
+						--i; // Because we have read a character too much.
 				}
 			break;
 			
