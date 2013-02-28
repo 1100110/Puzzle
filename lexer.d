@@ -1,4 +1,4 @@
-module Lexer;
+module Puzzle.Lexer;
 
 import std.stdio : writeln;//, File;
 import std.ascii : isDigit, isAlphaNum, isWhite;
