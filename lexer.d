@@ -166,122 +166,159 @@ immutable string[71] tokenValues = [
 	"^=",
 ];
 
-// lookup table
-const bool[string] types;
-const bool[string] keywords;
+// lookup table for types
+immutable string[28] types = [
+	"bool",
+	"byte",
+	"cdouble",
+	"cent",
+	"cfloat",
+	"char",
+	"creal",
+	"dchar",
+	"dstring",
+	"double",
+	"float",
+	"function",
+	"idouble",
+	"ifloat",
+	"int",
+	"ireal",
+	"long",
+	"real",
+	"short",
+	"string",
+	"ubyte",
+	"ucent",
+	"uint",
+	"ulong",
+	"ushort",
+	"void",
+	"wchar",
+	"wstring"
+];
+
+// lookup table for keywords
+immutable string[83] keywords = [
+	"__FILE__",
+	"__LINE__",
+	"__gshared",
+	"__traits",
+	"__vector",
+	"__parameters",
+	"abstract",
+	"alias",
+	"align",
+	"asm",
+	"assert",
+	"auto",
+	"body",
+	"break",
+	"case",
+	"cast",
+	"catch",
+	"class",
+	"const",
+	"continue",
+	"debug",
+	"default",
+	"delegate",
+	"delete",
+	"deprecated",
+	"do",
+	"else",
+	"enum",
+	"export",
+	"extern",
+	"false",
+	"final",
+	"finally",
+	"for",
+	"foreach",
+	"foreach_reverse",
+	"goto",
+	"if",
+	"immutable",
+	"import",
+	"in",
+	"inout",
+	"interface",
+	"invariant",
+	"is",
+	"lazy",
+	"macro",
+	"mixin",
+	"module",
+	"new",
+	"nothrow",
+	"null",
+	"out",
+	"override",
+	"package",
+	"pragma",
+	"private",
+	"protected",
+	"public",
+	"pure",
+	"ref",
+	"return",
+	"scope",
+	"shared",
+	"static",
+	"struct",
+	"super",
+	"switch",
+	"synchronized",
+	"template",
+	"this",
+	"throw",
+	"true",
+	"try",
+	"typedef",
+	"typeid",
+	"typeof",
+	"union",
+	"unittest",
+	"version",
+	"volatile",
+	"while",
+	"with"
+];
+
+immutable ubyte[char] typeMap;
+immutable ubyte[char] keywordMap;
 
 static this() {
-	types = [
-		"bool" : true,
-		"byte" : true,
-		"cdouble" : true,
-		"cent" : true,
-		"cfloat" : true,
-		"char" : true,
-		"creal" : true,
-		"dchar" : true,
-		"dstring" : true,
-		"double" : true,
-		"float" : true,
-		"function" : true,
-		"idouble" : true,
-		"ifloat" : true,
-		"int" : true,
-		"ireal" : true,
-		"long" : true,
-		"real" : true,
-		"short" : true,
-		"string" : true,
-		"ubyte" : true,
-		"ucent" : true,
-		"uint" : true,
-		"ulong" : true,
-		"ushort" : true,
-		"void" : true,
-		"wchar" : true,
-		"wstring" : true
+	typeMap = [
+		'd' : 7, 'l' : 16, 'i' : 12, 'u' : 20, 'b' : 0, 'f' : 10, 'r' : 17, 'v' : 25, 'c' : 2, 's' : 18, 'w' : 26
 	];
 	
-	keywords = [
-		"align" : true,
-		"deprecated" : true,
-		"extern" : true,
-		"pragma" : true,
-		"export" : true,
-		"package" : true,
-		"private" : true,
-		"protected" : true,
-		"public" : true,
-		"abstract" : true,
-		"auto" : true,
-		"const" : true,
-		"final" : true,
-		"__gshared" : true,
-		"immutable" : true,
-		"inout" : true,
-		"scope" : true,
-		"shared" : true,
-		"static" : true,
-		"synchronized" : true,
-		"alias" : true,
-		"asm" : true,
-		"assert" : true,
-		"body" : true,
-		"break" : true,
-		"case" : true,
-		"cast" : true,
-		"catch" : true,
-		"class" : true,
-		"continue" : true,
-		"debug" : true,
-		"default" : true,
-		"delegate" : true,
-		"delete" : true,
-		"do" : true,
-		"else" : true,
-		"enum" : true,
-		"false" : true,
-		"finally" : true,
-		"foreach" : true,
-		"foreach_reverse" : true,
-		"for" : true,
-		"goto" : true,
-		"if" : true,
-		"import" : true,
-		"in" : true,
-		"interface" : true,
-		"invariant" : true,
-		"is" : true,
-		"lazy" : true,
-		"macro" : true,
-		"mixin" : true,
-		"module" : true,
-		"new" : true,
-		"nothrow" : true,
-		"null" : true,
-		"out" : true,
-		"override" : true,
-		"pure" : true,
-		"ref" : true,
-		"return" : true,
-		"struct" : true,
-		"super" : true,
-		"switch" : true,
-		"template" : true,
-		"this" : true,
-		"throw" : true,
-		"true" : true,
-		"try" : true,
-		"typedef" : true,
-		"typeid" : true,
-		"typeof" : true,
-		"union" : true,
-		"unittest" : true,
-		"version" : true,
-		"volatile" : true,
-		"while" : true,
-		"with" : true
+	keywordMap = [
+		'_' : 0, 'a' : 6, 'b' : 12, 'c' : 14, 'd' : 20, 'e' : 26, 'f' : 30, 'g' : 36, 'i' : 37, 'l' : 45, 
+		'm' : 46, 'n' : 49, 'o' : 52, 'p' : 54, 'r' : 60, 's' : 62, 't' : 69, 'u' : 77, 'v' : 79, 'w' : 81
 	];
+}
+
+bool isKeyword(string value) pure nothrow {
+	if (value[0] !in keywordMap) return false;
+	
+	foreach (string kword; keywords[keywordMap[value[0]] .. $]) {
+		if (kword == value) return true;
+		if (kword[0] != value[0]) return false;
+	}
+	
+	return false;
+}
+
+bool isType(string value) pure nothrow {
+	if (value[0] !in typeMap) return false;
+	
+	foreach (string type; types[typeMap[value[0]] .. $]) {
+		if (type == value) return true;
+		if (type[0] != value[0]) return false;
+	}
+	
+	return false;
 }
 
 string getTokenValue(TokType type) pure nothrow {
@@ -342,7 +379,8 @@ char getNext(string str, size_t* idx) pure nothrow {
 enum Comment {
 	Plus,
 	Star,
-	Line
+	Line,
+	None
 }
 
 void main() {
@@ -365,18 +403,21 @@ void main() {
 	bool ignore, loop;
 	string id;
 	
-	Comment ctype;
+	Comment ctype = Comment.None;
 	
 	Token[] toks;
+	//toks.length = cast(size_t)(text.length * 0.1f);
 	
 	for (size_t i = 0; i < text.length; ++i) {
 		if (ignore && text[i + 1] == '/') {
 			if (ctype == Comment.Plus && text[i] == '+') {
 				ignore = false;
+				ctype = Comment.None;
 				
 				i += 2;
 			} else if (ctype == Comment.Star && text[i] == '*') {
 				ignore = false;
+				ctype = Comment.None;
 				
 				i += 2;
 			}
@@ -681,9 +722,9 @@ void main() {
 				i = index - 1;
 				
 				id = text[last .. index];
-				if (id in types) {
+				if (isType(id)) {
 					toks ~= Token(TokType.Type, line, last, &text[last], index - last);
-				} else if (id in keywords) {
+				} else if (isKeyword(id)) {
 					toks ~= Token(TokType.Keyword, line, last, &text[last], index - last);
 				} else {
 					toks ~= Token(TokType.Identifier, line, last, &text[last], index - last);
@@ -729,7 +770,9 @@ void main() {
 					if (text[i] == '\n') {
 						if (ctype == Comment.Line) {
 							assert(ignore, "No ignore while comment.");
+							
 							ignore = false;
+							ctype = Comment.None;
 						}
 						
 						isNext(text, &i, '\r');
@@ -756,6 +799,8 @@ void main() {
 		if (t.type == TokType.BinaryLiteral) writeln(t.line, ':', t.value());
 		version (Test) if (t.type != TokType.Newline && t.type != TokType.Whitespace) writeln(t.type, ':', t.line, ':', t.value());
 	}
+	
+	writeln("Length: ", text.length, ':', toks.length);
 	
 	// GC.enable();
 }
