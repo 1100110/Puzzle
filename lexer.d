@@ -5,8 +5,9 @@ version (all) {
 	import std.datetime : StopWatch;
 }
 
+import std.algorithm : canFind;
 import std.ascii : isDigit, isAlphaNum, isWhite;
-import std.file : readText, exists;
+import std.file : read, exists;
 import std.string : format;
 
 enum TokType {
@@ -170,158 +171,81 @@ immutable string[63] tokenValues = [
 ];
 
 // lookup table for types
-immutable string[28] types = [
-	"bool",
-	"byte",
-	"cdouble",
-	"cent",
-	"cfloat",
-	"char",
-	"creal",
-	"dchar",
-	"dstring",
-	"double",
-	"float",
-	"function",
-	"idouble",
-	"ifloat",
-	"int",
-	"ireal",
-	"long",
-	"real",
-	"short",
-	"string",
-	"ubyte",
-	"ucent",
-	"uint",
-	"ulong",
-	"ushort",
-	"void",
-	"wchar",
-	"wstring"
+immutable string[][ubyte.max] types = [
+	//null,
+	["auto"],
+	["bool", "byte"],
+	["cdouble", "cent", "cfloat", "char", "creal"],
+	["dchar", "dstring", "double"],
+	null,
+	["float"],
+	null,
+	null, 
+	["idouble", "ifloat", "int", "ireal"],
+	null,
+	null,
+	["long"],
+	null,
+	null,
+	null,
+	null,
+	null,
+	["real"],
+	["short", "size_t", "string"],
+	null,
+	["ubyte", "ucent", "uint", "ulong", "ushort"],
+	["void"],
+	["wchar", "wstring"],
+	null,
+	null,
+	null
 ];
 
 // lookup table for keywords
-immutable string[83] keywords = [
-	"__FILE__",
-	"__LINE__",
-	"__gshared",
-	"__traits",
-	"__vector",
-	"__parameters",
-	"abstract",
-	"alias",
-	"align",
-	"asm",
-	"assert",
-	"auto",
-	"body",
-	"break",
-	"case",
-	"cast",
-	"catch",
-	"class",
-	"const",
-	"continue",
-	"debug",
-	"default",
-	"delegate",
-	"delete",
-	"deprecated",
-	"do",
-	"else",
-	"enum",
-	"export",
-	"extern",
-	"false",
-	"final",
-	"finally",
-	"for",
-	"foreach",
-	"foreach_reverse",
-	"goto",
-	"if",
-	"immutable",
-	"import",
-	"in",
-	"inout",
-	"interface",
-	"invariant",
-	"is",
-	"lazy",
-	"macro",
-	"mixin",
-	"module",
-	"new",
-	"nothrow",
-	"null",
-	"out",
-	"override",
-	"package",
-	"pragma",
-	"private",
-	"protected",
-	"public",
-	"pure",
-	"ref",
-	"return",
-	"scope",
-	"shared",
-	"static",
-	"struct",
-	"super",
-	"switch",
-	"synchronized",
-	"template",
-	"this",
-	"throw",
-	"true",
-	"try",
-	"typedef",
-	"typeid",
-	"typeof",
-	"union",
-	"unittest",
-	"version",
-	"volatile",
-	"while",
-	"with"
+immutable string[][ubyte.max] keywords = [
+	["__FILE__", "__LINE__", "__gshared", "__traits", "__vector", "__parameters"],
+	["abstract", "alias", "align", "asm", "assert"/*, "auto"*/],
+	["body", "break"],
+	["case", "cast", "catch", "class", "const", "continue"],
+	["debug", "default", "delegate", "delete", "deprecated", "do"],
+	["else", "enum", "export", "extern"],
+	["false", "final", "finally", "for", "foreach", "foreach_reverse", "function"],
+	["goto"],
+	null,
+	["if", "immutable", "import", "in", "inout", "interface", "invariant", "is"],
+	null,
+	null,
+	["lazy"],
+	["macro", "mixin", "module"],
+	["new", "nothrow", "null"],
+	["out", "override"],
+	["package", "pragma", "private", "protected", "public", "pure"],
+	null,
+	["ref", "return"],
+	["scope", "shared", "static", "struct", "super", "switch", "synchronized"],
+	["template", "this", "throw", "true", "try", "typedef", "typeid", "typeof"],
+	["union", "unittest"],
+	["version", "volatile"],
+	["while", "with"],
+	null,
+	null,
+	null
 ];
 
-immutable ubyte[char] typeMap;
-immutable ubyte[char] keywordMap;
-
-static this() {
-	typeMap = [
-		'd' : 7, 'l' : 16, 'i' : 12, 'u' : 20, 'b' : 0, 'f' : 10, 'r' : 17, 'v' : 25, 'c' : 2, 's' : 18, 'w' : 26
-	];
-	
-	keywordMap = [
-		'_' : 0, 'a' : 6, 'b' : 12, 'c' : 14, 'd' : 20, 'e' : 26, 'f' : 30, 'g' : 36, 'i' : 37, 'l' : 45, 
-		'm' : 46, 'n' : 49, 'o' : 52, 'p' : 54, 'r' : 60, 's' : 62, 't' : 69, 'u' : 77, 'v' : 79, 'w' : 81
-	];
-}
+enum sub = 'a' - 1;
 
 bool isKeyword(string value) pure nothrow {
-	if (value[0] !in keywordMap) return false;
+	const ubyte idx = value[0] != '_' ? cast(ubyte)(value[0] - sub) : 0;
+	// if (keywords[idx] is null) return false;
 	
-	foreach (string kword; keywords[keywordMap[value[0]] .. $]) {
-		if (kword == value) return true;
-		if (kword[0] != value[0]) return false;
-	}
-	
-	return false;
+	return keywords[idx].canFind(value);
 }
 
 bool isType(string value) pure nothrow {
-	if (value[0] !in typeMap) return false;
+	const ubyte idx = cast(ubyte)(value[0] - 'a');
+	// if (types[idx] is null) return false;
 	
-	foreach (string type; types[typeMap[value[0]] .. $]) {
-		if (type == value) return true;
-		if (type[0] != value[0]) return false;
-	}
-	
-	return false;
+	return types[idx].canFind(value);
 }
 
 string getTokenValue(TokType type) pure nothrow {
@@ -336,9 +260,6 @@ public:
 	const char* ptr;
 	const TokType type;
 	
-	@disable
-	this();
-	
 	this(TokType tok, size_t line, size_t pos, const char* ptr = null, size_t length = 1) {
 		this.type = tok;
 		this.line = line;
@@ -350,8 +271,21 @@ public:
 	// @disable
 	// this(this);
 	
+	@property
 	const(string) value() const pure nothrow {
 		return this.ptr is null ? getTokenValue(this.type) : this.ptr[0 .. this.length];
+	}
+	
+	bool opEquals(ref const Token tok) const pure nothrow {
+		return this.type == tok.type && this.line == tok.line && this.value && tok.value;
+	}
+	
+	bool opEquals(TokType type) const pure nothrow {
+		return this.type == type;
+	}
+	
+	bool opEquals(string value) const pure nothrow {
+		return this.value == value;
 	}
 }
 
@@ -362,7 +296,6 @@ bool isNext(string str, size_t* idx, char c) pure nothrow {
 	
 	if (str[*idx + 1] == c) {
 		(*idx)++;
-		
 		return true;
 	}
 	
@@ -371,8 +304,7 @@ bool isNext(string str, size_t* idx, char c) pure nothrow {
 
 char getNext(string str, size_t* idx) pure nothrow {
 	(*idx)++;
-	
-	if (str.length == *idx) {
+	if (str.length <= *idx) {
 		return char.init;
 	}
 	
@@ -386,14 +318,13 @@ enum Comment {
 	None
 }
 
-Token[] lexical(string filename) {
+Token[] tokenize(string filename) {
 	if (!exists(filename)) throw new Exception("File does not exist: " ~ filename);
-	const string text = readText(filename);
+	const string text = cast(string) read(filename);
 	
 	size_t line = 1;
 	size_t last, index;
 	bool ignore, loop;
-	string id;
 	
 	Comment ctype = Comment.None;
 	
@@ -713,10 +644,9 @@ Token[] lexical(string filename) {
 				}
 				i = index - 1;
 				
-				id = text[last .. index];
-				if (isType(id)) {
+				if (isType(text[last .. index])) {
 					toks ~= Token(TokType.Type, line, last, &text[last], index - last);
-				} else if (isKeyword(id)) {
+				} else if (isKeyword(text[last .. index])) {
 					toks ~= Token(TokType.Keyword, line, last, &text[last], index - last);
 				} else {
 					toks ~= Token(TokType.Identifier, line, last, &text[last], index - last);
@@ -788,9 +718,6 @@ void main() {
 	// import core.memory : GC;
 	// GC.disable();
 	
-	StopWatch sw;
-	sw.start();
-	
 	string filename;
 	version (Test) {
 		filename = "rvalue_ref_model.d";
@@ -798,7 +725,10 @@ void main() {
 		filename = "D:/D/dmd2/src/phobos/std/datetime.d";
 	}
 	
-	Token[] toks = lexical(filename);
+	StopWatch sw;
+	sw.start();
+	
+	Token[] toks = tokenize(filename);
 	
 	sw.stop();
 	
