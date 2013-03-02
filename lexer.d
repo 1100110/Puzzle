@@ -1,10 +1,13 @@
 module Puzzle.Lexer;
 
-import std.stdio : writeln;//, File;
+version (all) {
+	import std.stdio : writeln;
+	import std.datetime : StopWatch;
+}
+
 import std.ascii : isDigit, isAlphaNum, isWhite;
-import std.file : readText;
+import std.file : readText, exists;
 import std.string : format;
-import std.datetime : StopWatch;
 
 enum TokType {
 	Assign, /// =
@@ -100,7 +103,7 @@ enum TokType {
 	BinaryLiteral, /// 0b010011
 }
 
-immutable string[71] tokenValues = [
+immutable string[63] tokenValues = [
 	"=",
 	"@",
 	"&",
@@ -383,20 +386,9 @@ enum Comment {
 	None
 }
 
-void main() {
-	// import core.memory : GC;
-	// GC.disable();
-	
-	StopWatch sw1, sw2;
-	sw1.start();
-	
-	version (Test) {
-		string text = readText("rvalue_ref_model.d");
-	} else {
-		string text = readText("D:/D/dmd2/src/phobos/std/datetime.d");
-	}
-	
-	sw2.start();
+Token[] lexical(string filename) {
+	if (!exists(filename)) throw new Exception("File does not exist: " ~ filename);
+	const string text = readText(filename);
 	
 	size_t line = 1;
 	size_t last, index;
@@ -789,18 +781,34 @@ void main() {
 		}
 	}
 	
-	sw2.stop();
-	sw1.stop();
+	return toks;
+}
+
+void main() {
+	// import core.memory : GC;
+	// GC.disable();
 	
-	writeln("Duration: ", sw1.peek().msecs, " msecs total.");
-	writeln("Duration: ", sw2.peek().msecs, " msecs lexer.");
+	StopWatch sw;
+	sw.start();
+	
+	string filename;
+	version (Test) {
+		filename = "rvalue_ref_model.d";
+	} else {
+		filename = "D:/D/dmd2/src/phobos/std/datetime.d";
+	}
+	
+	Token[] toks = lexical(filename);
+	
+	sw.stop();
+	
+	writeln("Duration: ", sw.peek().msecs, " msecs total.");
+	// writeln("Duration: ", sw2.peek().msecs, " msecs lexer.");
 	
 	foreach (ref Token t; toks) {
 		if (t.type == TokType.BinaryLiteral) writeln(t.line, ':', t.value());
 		version (Test) if (t.type != TokType.Newline && t.type != TokType.Whitespace) writeln(t.type, ':', t.line, ':', t.value());
 	}
-	
-	writeln("Length: ", text.length, ':', toks.length);
 	
 	// GC.enable();
 }
