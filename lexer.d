@@ -5,10 +5,11 @@ version (all) {
 	import std.datetime : StopWatch;
 }
 
-import std.algorithm : canFind;
+// import std.algorithm : canFind;
 import std.ascii : isDigit, isAlphaNum, isWhite;
 import std.file : read, exists;
 import std.string : format;
+// import core.memory : GC;
 
 enum TokType {
 	Assign, /// =
@@ -248,6 +249,14 @@ bool isType(string value) pure nothrow {
 	return types[idx].canFind(value);
 }
 
+bool canFind(ref const string[] values, string value) pure nothrow {
+	foreach (_val; values) {
+		if (_val == value) return true;
+	}
+	
+	return false;
+}
+
 string getTokenValue(TokType type) pure nothrow {
 	return type < tokenValues.length ? tokenValues[type] : null;
 }
@@ -289,26 +298,86 @@ public:
 	}
 }
 
-bool isNext(string str, size_t* idx, char c) pure nothrow {
-	if (str.length <= *idx + 1) {
-		return false;
-	}
-	
-	if (str[*idx + 1] == c) {
-		(*idx)++;
-		return true;
-	}
-	
-	return false;
-}
+/**
+String stream, used to lex from strings
+*/
+struct InputStream {
+public:
+    /// Input string
+    const string text;
+    /// File name
+    const string file;
+    /// Current index
+    size_t index = 0;
+    /// Current line number
+	size_t line = 1;
 
-char getNext(string str, size_t* idx) pure nothrow {
-	(*idx)++;
-	if (str.length <= *idx) {
-		return char.init;
+    this(string file) {
+		assert(exists(file), "File does not exist: " ~ file);
+		
+        this.text = cast(string) read(file);
+        this.file = file;
+    }
+	
+	@property
+	size_t pos() const pure nothrow {
+		return this.index;
 	}
 	
-	return str[*idx];
+	void move(int len) pure nothrow {
+		this.index += len;
+	}
+	
+	void moveBack() pure nothrow {
+		this.move(-1);
+	}
+	
+	const(char)* getPtr(size_t index) const pure nothrow {
+		return &this.text[index];
+	}
+	
+    /// Read a character and advance the current index
+    char popCh() pure nothrow {
+        char ch = this.peekCh();
+		this.move(1);
+		
+        return ch;
+    }
+	
+	char topCh() const pure nothrow {
+		return this.text[this.index - 1];
+	}
+
+    /// Read a character without advancing the index.
+    char peekCh() const pure nothrow {
+        // return (this.index < this.text.length) ? this.text[this.index] : '\0';
+		return this.text[this.index];
+    }
+	
+	/// Read the next character without advancing the index.
+    char peekNextCh() const pure nothrow {
+        // return (this.index + 1 < this.text.length) ? this.text[this.index + 1] : '\0';
+		return this.text[this.index + 1];
+    }
+	
+	/// Test for a match with a given character. The position is moved if matched.
+    bool match(char c) pure nothrow {
+        if (this.peekCh() == c) {
+			this.move(1);
+			return true;
+		}
+		
+		return false;
+    }
+	
+	/// Test for a match of the next character with the given character.
+	bool isNext(char c) pure nothrow {
+		return this.peekNextCh() == c;
+	}
+	
+	bool isEof() const pure nothrow {
+		return this.index >= this.text.length;
+	}
 }
 
 enum Comment {
@@ -319,377 +388,373 @@ enum Comment {
 }
 
 Token[] tokenize(string filename) {
-	if (!exists(filename)) throw new Exception("File does not exist: " ~ filename);
-	const string text = cast(string) read(filename);
+	InputStream instr = InputStream(filename);
 	
-	size_t line = 1;
-	size_t last, index;
+	size_t last;
 	bool ignore, loop;
 	
 	Comment ctype = Comment.None;
 	
 	Token[] toks;
-	//toks.length = cast(size_t)(text.length * 0.1f);
+	// toks.length = 100; // TODO
 	
-	for (size_t i = 0; i < text.length; ++i) {
-		if (ignore && text[i + 1] == '/') {
-			if (ctype == Comment.Plus && text[i] == '+') {
+	// GC.disable();
+	while (!instr.isEof()) {
+		if (ignore && instr.isNext('/')) {
+			if (ctype == Comment.Plus && instr.peekCh() == '+') {
 				ignore = false;
 				ctype = Comment.None;
 				
-				i += 2;
-			} else if (ctype == Comment.Star && text[i] == '*') {
+				instr.move(2);
+			} else if (ctype == Comment.Star && instr.peekCh() == '*') {
 				ignore = false;
 				ctype = Comment.None;
 				
-				i += 2;
+				instr.move(2);
 			}
 		}
 		
-		if (!ignore && text[i] == '/' && text[i + 1] == '/') { // ignore single comment
+		if (!ignore && instr.peekCh() == '/' && instr.isNext('/')) { // ignore single comment
 			ignore = true;
 			ctype = Comment.Line;
 			
-			i += 2;
-		} else if (!ignore && text[i] == '/' && text[i + 1] == '*') { // ignore multi line comments
+			instr.move(2);
+		} else if (!ignore && instr.peekCh() == '/' && instr.isNext('*')) { // ignore multi line comments
 			ignore = true;
 			ctype = Comment.Star;
 			
-			i += 2;
-		} else if (!ignore && text[i] == '/' && text[i + 1] == '+') { // ignore multi line comments
+			instr.move(2);
+		} else if (!ignore && instr.peekCh() == '/' && instr.isNext('+')) { // ignore multi line comments
 			ignore = true;
 			ctype = Comment.Plus;
 			
-			i += 2;
+			instr.move(2);
 		}
 		
-		if (ignore) goto Ldef;
+		if (ignore) {
+			instr.popCh();
+			goto Ldef;
+		}
 		
-		switch (text[i]) {
+		switch (instr.popCh()) {
 			case '&':
-				switch (getNext(text, &i)) {
-					case '&': toks ~= Token(TokType.LogicAnd, line, i); break;
-					case '=': toks ~= Token(TokType.BitAndAssign, line, i); break;
+				switch (instr.popCh()) {
+					case '&': toks ~= Token(TokType.LogicAnd, instr.line, instr.pos); break;
+					case '=': toks ~= Token(TokType.BitAndAssign, instr.line, instr.pos); break;
 					default:
-						toks ~= Token(TokType.BitAnd, line, i);
-						--i; // Because we have read a character too much.
+						toks ~= Token(TokType.BitAnd, instr.line, instr.pos);
+						instr.moveBack(); // Because we have read a character too much.
 				}
 			break;
 			
 			case '|':
-				switch (getNext(text, &i)) {
-					case '|': toks ~= Token(TokType.LogicOr, line, i); break;
-					case '=': toks ~= Token(TokType.BitOrAssign, line, i); break;
+				switch (instr.popCh()) {
+					case '|': toks ~= Token(TokType.LogicOr, instr.line, instr.pos); break;
+					case '=': toks ~= Token(TokType.BitOrAssign, instr.line, instr.pos); break;
 					default:
-						toks ~= Token(TokType.BitOr, line, i);
-						--i; // Because we have read a character too much.
+						toks ~= Token(TokType.BitOr, instr.line, instr.pos);
+						instr.moveBack(); // Because we have read a character too much.
 				}
 			break;
 			
 			case '=':
-				switch (getNext(text, &i)) {
-					case '>': toks ~= Token(TokType.GoesTo, line, i); break;
-					case '=': toks ~= Token(TokType.Equals, line, i); break;
+				switch (instr.popCh()) {
+					case '>': toks ~= Token(TokType.GoesTo, instr.line, instr.pos); break;
+					case '=': toks ~= Token(TokType.Equals, instr.line, instr.pos); break;
 					default:
-						toks ~= Token(TokType.Assign, line, i);
-						--i; // Because we have read a character too much.
+						toks ~= Token(TokType.Assign, instr.line, instr.pos);
+						instr.moveBack(); // Because we have read a character too much.
 				}
 			break;
 			
 			case '!':
-				if (isNext(text, &i, '=')) {
-					toks ~= Token(TokType.NotEquals, line, i);
+				if (instr.match('=')) {
+					toks ~= Token(TokType.NotEquals, instr.line, instr.pos);
 				} else {
-					toks ~= Token(TokType.Not, line, i);
+					toks ~= Token(TokType.Not, instr.line, instr.pos);
 				}
 			break;
 			
-			case '@': toks ~= Token(TokType.At, line, i); break;
-			case '?': toks ~= Token(TokType.Ternary, line, i); break;
-			case '#': toks ~= Token(TokType.Hash, line, i); break;
-			case '$': toks ~= Token(TokType.Dollar, line, i); break;
+			case '@': toks ~= Token(TokType.At, instr.line, instr.pos); break;
+			case '?': toks ~= Token(TokType.Ternary, instr.line, instr.pos); break;
+			case '#': toks ~= Token(TokType.Hash, instr.line, instr.pos); break;
+			case '$': toks ~= Token(TokType.Dollar, instr.line, instr.pos); break;
 			
-			case ',': toks ~= Token(TokType.Comma, line, i);
-			case ':': toks ~= Token(TokType.Colon, line, i);
-			case ';': toks ~= Token(TokType.Semicolon, line, i);
+			case ',': toks ~= Token(TokType.Comma, instr.line, instr.pos);
+			case ':': toks ~= Token(TokType.Colon, instr.line, instr.pos);
+			case ';': toks ~= Token(TokType.Semicolon, instr.line, instr.pos);
 			
-			case '(': toks ~= Token(TokType.LParen, line, i); break;
-			case ')': toks ~= Token(TokType.RParen, line, i); break;
-			case '[': toks ~= Token(TokType.LBracket, line, i); break;
-			case ']': toks ~= Token(TokType.RBracket, line, i); break;
-			case '{': toks ~= Token(TokType.LBrace, line, i); break;
-			case '}': toks ~= Token(TokType.RBrace, line, i); break;
-			case '\\': toks ~= Token(TokType.Backslash, line, i); break;
+			case '(': toks ~= Token(TokType.LParen, instr.line, instr.pos); break;
+			case ')': toks ~= Token(TokType.RParen, instr.line, instr.pos); break;
+			case '[': toks ~= Token(TokType.LBracket, instr.line, instr.pos); break;
+			case ']': toks ~= Token(TokType.RBracket, instr.line, instr.pos); break;
+			case '{': toks ~= Token(TokType.LBrace, instr.line, instr.pos); break;
+			case '}': toks ~= Token(TokType.RBrace, instr.line, instr.pos); break;
+			case '\\': toks ~= Token(TokType.Backslash, instr.line, instr.pos); break;
 			
 			case '+':
-				switch (getNext(text, &i)) {
-					case '+': toks ~= Token(TokType.Increment, line, i); break;
-					case '=': toks ~= Token(TokType.PlusAssign, line, i); break;
+				switch (instr.popCh()) {
+					case '+': toks ~= Token(TokType.Increment, instr.line, instr.pos); break;
+					case '=': toks ~= Token(TokType.PlusAssign, instr.line, instr.pos); break;
 					default:
-						toks ~= Token(TokType.Plus, line, i);
-						--i; // Because we have read a character too much.
+						toks ~= Token(TokType.Plus, instr.line, instr.pos);
+						instr.moveBack(); // Because we have read a character too much.
 				}
 			break;
 			
 			case '-':
-				switch (getNext(text, &i)) {
-					case '-': toks ~= Token(TokType.Decrement, line, i); break;
-					case '=': toks ~= Token(TokType.MinusAssign, line, i); break;
+				switch (instr.popCh()) {
+					case '-': toks ~= Token(TokType.Decrement, instr.line, instr.pos); break;
+					case '=': toks ~= Token(TokType.MinusAssign, instr.line, instr.pos); break;
 					default:
-						toks ~= Token(TokType.Minus, line, i);
-						--i; // Because we have read a character too much.
+						toks ~= Token(TokType.Minus, instr.line, instr.pos);
+						instr.moveBack(); // Because we have read a character too much.
 				}
 			break;
 			
 			case '*':
-				if (isNext(text, &i, '=')) {
-					toks ~= Token(TokType.MulAssign, line, i);
+				if (instr.match('=')) {
+					toks ~= Token(TokType.MulAssign, instr.line, instr.pos);
 				} else {
-					toks ~= Token(TokType.Star, line, i);
+					toks ~= Token(TokType.Star, instr.line, instr.pos);
 				}
 			break;
 			
 			case '/':
-				if (isNext(text, &i, '=')) {
-					toks ~= Token(TokType.DivAssign, line, i);
+				if (instr.match('=')) {
+					toks ~= Token(TokType.DivAssign, instr.line, instr.pos);
 				} else {
-					toks ~= Token(TokType.Div, line, i);
+					toks ~= Token(TokType.Div, instr.line, instr.pos);
 				}
 			break;
 			
 			case '%':
-				if (isNext(text, &i, '=')) {
-					toks ~= Token(TokType.ModAssign, line, i);
+				if (instr.match('=')) {
+					toks ~= Token(TokType.ModAssign, instr.line, instr.pos);
 				} else {
-					toks ~= Token(TokType.Mod, line, i);
+					toks ~= Token(TokType.Mod, instr.line, instr.pos);
 				}
 			break;
 			
 			case '^':
-				switch (getNext(text, &i)) {
+				switch (instr.popCh()) {
 					case '^': 
-						if (isNext(text, &i, '=')) {
-							toks ~= Token(TokType.PowAssign, line, i);
+						if (instr.match('=')) {
+							toks ~= Token(TokType.PowAssign, instr.line, instr.pos);
 						} else {
-							toks ~= Token(TokType.Pow, line, i);
+							toks ~= Token(TokType.Pow, instr.line, instr.pos);
 						}
 					break;
 					default:
-						--i; // Because we have read a character too much.
-						if (isNext(text, &i, '=')) {
-							toks ~= Token(TokType.XorAssign, line, i);
+						instr.moveBack(); // Because we have read a character too much.
+						if (instr.match('=')) {
+							toks ~= Token(TokType.XorAssign, instr.line, instr.pos);
 						} else {
-							toks ~= Token(TokType.Xor, line, i);
+							toks ~= Token(TokType.Xor, instr.line, instr.pos);
 						}
 				}
 			break;
 			
 			case '<':
-				switch (getNext(text, &i)) {
-					case '=': toks ~= Token(TokType.LessEqual, line, i); break;
+				switch (instr.popCh()) {
+					case '=': toks ~= Token(TokType.LessEqual, instr.line, instr.pos); break;
 					case '<':
-						if (isNext(text, &i, '=')) {
-							toks ~= Token(TokType.ShiftLeftAssign, line, i);
+						if (instr.match('=')) {
+							toks ~= Token(TokType.ShiftLeftAssign, instr.line, instr.pos);
 						} else {
-							toks ~= Token(TokType.ShiftLeft, line, i);
+							toks ~= Token(TokType.ShiftLeft, instr.line, instr.pos);
 						}
 					break;
-					case '>': toks ~= Token(TokType.LessOrGreater, line, i); break;
+					case '>': toks ~= Token(TokType.LessOrGreater, instr.line, instr.pos); break;
 					default:
-						toks ~= Token(TokType.Less, line, i);
-						--i;
+						toks ~= Token(TokType.Less, instr.line, instr.pos);
+						instr.moveBack(); // Because we have read a character too much.
 				}
 			break;
 			
 			case '>':
-				switch (getNext(text, &i)) {
-					case '=': toks ~= Token(TokType.GreaterEqual, line, i); break;
+				switch (instr.popCh()) {
+					case '=': toks ~= Token(TokType.GreaterEqual, instr.line, instr.pos); break;
 					case '>':
-						if (isNext(text, &i, '=')) {
-							toks ~= Token(TokType.ShiftRightAssign, line, i);
-						} else if (isNext(text, &i, '>')) {
-							if (isNext(text, &i, '=')) {
-								toks ~= Token(TokType.UnsignedShiftRightAssign, line, i);
+						if (instr.match('=')) {
+							toks ~= Token(TokType.ShiftRightAssign, instr.line, instr.pos);
+						} else if (instr.match('>')) {
+							if (instr.match('=')) {
+								toks ~= Token(TokType.UnsignedShiftRightAssign, instr.line, instr.pos);
 							} else {
-								toks ~= Token(TokType.UnsignedShiftRight, line, i);
+								toks ~= Token(TokType.UnsignedShiftRight, instr.line, instr.pos);
 							}
 						} else {
-							toks ~= Token(TokType.ShiftRight, line, i);
+							toks ~= Token(TokType.ShiftRight, instr.line, instr.pos);
 						}
 					break;
 					default:
-						toks ~= Token(TokType.Greater, line, i);
-						--i; // Because we have read a character too much.
+						toks ~= Token(TokType.Greater, instr.line, instr.pos);
+						instr.moveBack(); // Because we have read a character too much.
 				}
 			break;
 			
 			case '~':
-				if (isNext(text, &i, '=')) {
-					toks ~= Token(TokType.CatAssign, line, i);
+				if (instr.match('=')) {
+					toks ~= Token(TokType.CatAssign, instr.line, instr.pos);
 				} else {
-					toks ~= Token(TokType.Tilde, line, i);
+					toks ~= Token(TokType.Tilde, instr.line, instr.pos);
 				}
 			break;
 			
 			case '.':
-				if (isNext(text, &i, '.')) {
-					if (isNext(text, &i, '.')) {
-						toks ~= Token(TokType.VarArg, line, i);
+				if (instr.match('.')) {
+					if (instr.match('.')) {
+						toks ~= Token(TokType.VarArg, instr.line, instr.pos);
 					} else {
-						toks ~= Token(TokType.Slice, line, i);
+						toks ~= Token(TokType.Slice, instr.line, instr.pos);
 					}
 				} else {
-					toks ~= Token(TokType.Dot, line, i);
+					toks ~= Token(TokType.Dot, instr.line, instr.pos);
 				}
 			break;
 			
 			case '0': .. case '9':
-				last = i;
+				last = instr.pos - 1;
 				
-				if (text[i] == '0' && isNext(text, &i, 'x')) {
+				if (instr.topCh() == '0' && instr.match('x')) {
 					loop = true;
 					while (loop) {
-						switch (text[i + 1]) {
+						switch (instr.peekCh()) {
 							case 'a': .. case 'f':
 							case 'A': .. case 'F':
-								++i;
+								instr.popCh();
 							break;
 							default: loop = false;
 						}
 					}
 					
-					toks ~= Token(TokType.HexLiteral, line, last, &text[last], i - last);
+					toks ~= Token(TokType.HexLiteral, instr.line, last, instr.getPtr(last), instr.pos - last);
 					
 					break;
 				}
 				
-				if (text[i] == '0' && isNext(text, &i, 'b')) {
+				if (instr.topCh() == '0' && instr.match('b')) {
 					loop = true;
 					while (loop) {
-						switch (text[i + 1]) {
+						switch (instr.peekCh()) {
 							case '0':
 							case '1':
-								i++;
+								instr.popCh();
 							break;
 							default: loop = false;
 						}
 					}
 					
-					toks ~= Token(TokType.BinaryLiteral, line, last, &text[last], i - last);
+					toks ~= Token(TokType.BinaryLiteral, instr.line, last, instr.getPtr(last), instr.pos - last);
 					
 					break;
 				}
 				
-				index = i;
-				while (isDigit(text[index])) {
-					++index;
-					if (text[index] == '_' && getNext(text, &index).isDigit()) {
-						++index;
+				while (instr.popCh().isDigit()) {
+					if (instr.peekCh() == '_' && instr.peekNextCh().isDigit()) {
+						instr.popCh();
 					}
 					// if (text[index] == '\n') throw new Exception("WRONG #1");
 				}
-				i = index - 1;
 				
-				switch (text[index]) {
+				switch (instr.popCh()) {
 					case '.':
-						index++;
-						
-						while (isDigit(text[index])) {
-							++index;
-							if (text[index] == '_' && getNext(text, &index).isDigit()) {
-								++index;
+						while (instr.peekCh().isDigit()) {
+							instr.popCh();
+							
+							if (instr.peekCh() == '_' && instr.peekNextCh().isDigit()) {
+								instr.popCh();
 							}
 							// if (text[index] == '\n') throw new Exception("WRONG 1.2");
 						}
-						i = index - 1;
 						
-						if (isNext(text, &index, 'f') || isNext(text, &index, 'F')) {
-							toks ~= Token(TokType.FloatLiteral, line, last, &text[last], index - last);
-						} else if (isNext(text, &index, 'l') || isNext(text, &index, 'L')) {
-							toks ~= Token(TokType.RealLiteral, line, last, &text[last], index - last);
+						if (instr.match('f') || instr.match('F')) {
+							toks ~= Token(TokType.FloatLiteral, instr.line, last, instr.getPtr(last), instr.pos - last);
+						} else if (instr.match('l') || instr.match('L')) {
+							toks ~= Token(TokType.RealLiteral, instr.line, last, instr.getPtr(last), instr.pos - last);
 						} else {
-							toks ~= Token(TokType.DoubleLiteral, line, last, &text[last], index - last);
+							toks ~= Token(TokType.DoubleLiteral, instr.line, last, instr.getPtr(last), instr.pos - last);
 						}
 					break;
 					
 					case 'l':
 					case 'L':
-						toks ~= Token(TokType.LongLiteral, line, last, &text[last], index - last);
+						toks ~= Token(TokType.LongLiteral, instr.line, last, instr.getPtr(last), instr.pos - last);
 					break;
 					
 					case 'u':
 					case 'U':
-						if (isNext(text, &index, 'l') || isNext(text, &index, 'L')) {
-							toks ~= Token(TokType.UlongLiteral, line, last, &text[last], index - last);
+						if (instr.match('l') || instr.match('L')) {
+							toks ~= Token(TokType.UlongLiteral, instr.line, last, instr.getPtr(last), instr.pos - last);
 						} else {
-							toks ~= Token(TokType.UintLiteral, line, last, &text[last], index - last);
+							toks ~= Token(TokType.UintLiteral, instr.line, last, instr.getPtr(last), instr.pos - last);
 						}
 					break;
 					
-					default: toks ~= Token(TokType.IntLiteral, line, last, &text[last], index - last);
+					default:
+						toks ~= Token(TokType.IntLiteral, instr.line, last, instr.getPtr(last), instr.pos - last);
+						instr.moveBack(); // Because we have read a character too much.
 				}
 			break;
 			
 			case '_':
 			case 'a': .. case 'z':
 			case 'A': .. case 'Z':
-				if ((text[i] == 'w' || text[i] == 'd' || text[i] == 'r') && isNext(text, &i, '"')) {
+				last = instr.pos - 1;
+				
+				char c = instr.topCh();
+				if ((c == 'w' || c == 'd' || c == 'r') && instr.peekCh() == '"') {
+					instr.popCh();
 					goto case '"';
 				}
 				
-				last = index = i;
-				while (text[index].isAlphaNum() || text[index] == '_') {
-					index++;
-					// if (text[index] == '\n') throw new Exception("WRONG 1.3");
+				while (instr.peekCh().isAlphaNum() || instr.peekCh() == '_') {
+					instr.popCh();
 				}
-				i = index - 1;
 				
-				if (isType(text[last .. index])) {
-					toks ~= Token(TokType.Type, line, last, &text[last], index - last);
-				} else if (isKeyword(text[last .. index])) {
-					toks ~= Token(TokType.Keyword, line, last, &text[last], index - last);
+				if (isType(instr.text[last .. instr.pos])) {
+					toks ~= Token(TokType.Type, instr.line, last, instr.getPtr(last), instr.pos - last);
+				} else if (isKeyword(instr.text[last .. instr.pos])) {
+					toks ~= Token(TokType.Keyword, instr.line, last, instr.getPtr(last), instr.pos - last);
 				} else {
-					toks ~= Token(TokType.Identifier, line, last, &text[last], index - last);
+					toks ~= Token(TokType.Identifier, instr.line, last, instr.getPtr(last), instr.pos - last);
 				}
 			break;
 			
 			case '`':
-				last = i;
-				while (!isNext(text, &i, '`')) {
-					++i;
-				}
+				last = instr.pos;
+				while (instr.popCh() != '`') { }
 				
-				toks ~= Token(TokType.RegexStringLiteral, line, last, &text[last], i - last);
+				toks ~= Token(TokType.RegexStringLiteral, instr.line, last, instr.getPtr(last), instr.pos - last);
 			break;
 			
 			case '\'':
 				char c;
-				if (!isNext(text, &i, '\'')) {
-					c = text[i];
-					++i;
+				if (instr.peekCh() != '\'') {
+					c = instr.popCh();
 				}
+				instr.popCh();
 				
-				toks ~= Token(TokType.CharacterLiteral, line, i, &c);
+				toks ~= Token(TokType.CharacterLiteral, instr.line, instr.pos, &c);
 			break;
 			
 			case '"':
-				last = i;
-				while (!isNext(text, &i, '"')) {
-					++i;
-				}
+				last = instr.pos;
+				while (instr.popCh() != '"') { }
 				
-				switch (text[last - 1]) {
-					case 'w': toks ~= Token(TokType.WStringLiteral, line, last, &text[last], i - last); break;
-					case 'd': toks ~= Token(TokType.DStringLiteral, line, last, &text[last], i - last); break;
-					case 'r': toks ~= Token(TokType.RegexStringLiteral, line, last, &text[last], i - last); break;
-					default: toks ~= Token(TokType.StringLiteral, line, last, &text[last], i - last);
+				switch (instr.text[last - 1]) {
+					case 'w': toks ~= Token(TokType.WStringLiteral, instr.line, last, instr.getPtr(last), instr.pos - last); break;
+					case 'd': toks ~= Token(TokType.DStringLiteral, instr.line, last, instr.getPtr(last), instr.pos - last); break;
+					case 'r': toks ~= Token(TokType.RegexStringLiteral, instr.line, last, instr.getPtr(last), instr.pos - last); break;
+					default: toks ~= Token(TokType.StringLiteral, instr.line, last, instr.getPtr(last), instr.pos - last);
 				}
 			break;
 			
 			default:
 				Ldef:
-				if (text[i].isWhite()) {
-					if (text[i] == '\n') {
+				if (instr.topCh().isWhite()) {
+					if (instr.topCh() == '\n') {
 						if (ctype == Comment.Line) {
 							assert(ignore, "No ignore while comment.");
 							
@@ -697,19 +762,23 @@ Token[] tokenize(string filename) {
 							ctype = Comment.None;
 						}
 						
-						isNext(text, &i, '\r');
-						++line;
+						do {
+							instr.line++;
+							instr.match('\r');
+						} while (instr.popCh() == '\n');
+						instr.moveBack(); // Because we have read a character too much.
 						
-						toks ~= Token(TokType.Newline, line, i);
+						toks ~= Token(TokType.Newline, instr.line, instr.pos);
 					} else {
-						toks ~= Token(TokType.Whitespace, line, i);
+						toks ~= Token(TokType.Whitespace, instr.line, instr.pos);
 					}
 				} else if (!ignore) {
-					throw new Exception("Undefinied Token: " ~ text[i], "", line);
+					throw new Exception("Undefinied Token: [" ~ instr.topCh() ~ ']', "", instr.line);
 				}
 			break;
 		}
 	}
+	// GC.enable();
 	
 	return toks;
 }
