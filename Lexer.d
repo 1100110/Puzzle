@@ -1,8 +1,6 @@
 module Puzzle.Lexer;
 
-version (none) {
-	import std.stdio : writeln;
-}
+import std.stdio : writeln;
 
 // import std.algorithm : canFind;
 import std.ascii : isDigit, isAlphaNum, isWhite;
@@ -238,16 +236,16 @@ enum sub = 'a' - 1;
 bool isKeyword(string value) pure nothrow {
 	const ubyte idx = value[0] != '_' ? cast(ubyte)(value[0] - sub) : 0;
 	
-	return keywords[idx] is null && keywords[idx].canFind(value);
+	return keywords[idx] !is null && keywords[idx].canFind(value);
 }
 
 bool isType(string value) pure nothrow {
 	const ubyte idx = cast(ubyte)(value[0] - 'a');
 	
-	return types[idx] is null && types[idx].canFind(value);
+	return types[idx] !is null && types[idx].canFind(value);
 }
 
-bool canFind(ref const string[] values, string value) pure nothrow {
+bool canFind(immutable string[] values, string value) pure nothrow {
 	foreach (_val; values) {
 		if (_val == value) return true;
 	}
@@ -281,18 +279,6 @@ public:
 	@property
 	string value() const pure nothrow {
 		return this.ptr is null ? getTokenValue(this.type) : this.ptr[0 .. this.length];
-	}
-	
-	bool opEquals(ref const Token tok) const pure nothrow {
-		return this.type == tok.type && this.line == tok.line && this.value && tok.value;
-	}
-	
-	bool opEquals(TokType type) const pure nothrow {
-		return this.type == type;
-	}
-	
-	bool opEquals(string value) const pure nothrow {
-		return this.value == value;
 	}
 }
 
@@ -345,8 +331,8 @@ public:
 	
 	/// Read the next character without advancing the index.
     char peekNextCh() const pure nothrow {
-		// return (this.index + 1 < this.text.length) ? this.text[this.index + 1] : '\0';
-		return this.text[this.index + 1];
+		return (this.index + 1 < this.text.length) ? this.text[this.index + 1] : '\0';
+		// return this.text[this.index + 1];
     }
 	
 	/// Test for a match with a given character. The position is moved if matched.
@@ -431,8 +417,8 @@ Token[] tokenize(string filename) {
 					case '&': toks ~= Token(TokType.LogicAnd, instr.line, instr.index); break;
 					case '=': toks ~= Token(TokType.BitAndAssign, instr.line, instr.index); break;
 					default:
-						toks ~= Token(TokType.BitAnd, instr.line, instr.index);
 						instr.moveBack(); // Because we have read a character too much.
+						toks ~= Token(TokType.BitAnd, instr.line, instr.index);
 				}
 			break;
 			
@@ -441,8 +427,8 @@ Token[] tokenize(string filename) {
 					case '|': toks ~= Token(TokType.LogicOr, instr.line, instr.index); break;
 					case '=': toks ~= Token(TokType.BitOrAssign, instr.line, instr.index); break;
 					default:
-						toks ~= Token(TokType.BitOr, instr.line, instr.index);
 						instr.moveBack(); // Because we have read a character too much.
+						toks ~= Token(TokType.BitOr, instr.line, instr.index);
 				}
 			break;
 			
@@ -451,8 +437,8 @@ Token[] tokenize(string filename) {
 					case '>': toks ~= Token(TokType.GoesTo, instr.line, instr.index); break;
 					case '=': toks ~= Token(TokType.Equals, instr.line, instr.index); break;
 					default:
-						toks ~= Token(TokType.Assign, instr.line, instr.index);
 						instr.moveBack(); // Because we have read a character too much.
+						toks ~= Token(TokType.Assign, instr.line, instr.index);
 				}
 			break;
 			
@@ -486,8 +472,8 @@ Token[] tokenize(string filename) {
 					case '+': toks ~= Token(TokType.Increment, instr.line, instr.index); break;
 					case '=': toks ~= Token(TokType.PlusAssign, instr.line, instr.index); break;
 					default:
-						toks ~= Token(TokType.Plus, instr.line, instr.index);
 						instr.moveBack(); // Because we have read a character too much.
+						toks ~= Token(TokType.Plus, instr.line, instr.index);
 				}
 			break;
 			
@@ -496,8 +482,8 @@ Token[] tokenize(string filename) {
 					case '-': toks ~= Token(TokType.Decrement, instr.line, instr.index); break;
 					case '=': toks ~= Token(TokType.MinusAssign, instr.line, instr.index); break;
 					default:
-						toks ~= Token(TokType.Minus, instr.line, instr.index);
 						instr.moveBack(); // Because we have read a character too much.
+						toks ~= Token(TokType.Minus, instr.line, instr.index);
 				}
 			break;
 			
@@ -556,8 +542,8 @@ Token[] tokenize(string filename) {
 					break;
 					case '>': toks ~= Token(TokType.LessOrGreater, instr.line, instr.index); break;
 					default:
-						toks ~= Token(TokType.Less, instr.line, instr.index);
 						instr.moveBack(); // Because we have read a character too much.
+						toks ~= Token(TokType.Less, instr.line, instr.index);
 				}
 			break;
 			
@@ -578,8 +564,8 @@ Token[] tokenize(string filename) {
 						}
 					break;
 					default:
-						toks ~= Token(TokType.Greater, instr.line, instr.index);
 						instr.moveBack(); // Because we have read a character too much.
+						toks ~= Token(TokType.Greater, instr.line, instr.index);
 				}
 			break;
 			
@@ -640,11 +626,12 @@ Token[] tokenize(string filename) {
 					break;
 				}
 				
-				while (instr.popCh().isDigit()) {
+				while (instr.peekCh().isDigit()) {
 					if (instr.peekCh() == '_' && instr.peekNextCh().isDigit()) {
 						instr.popCh();
 					}
 					debug if (instr.topCh() == '\n') throw new Exception("WRONG 1.2");
+					instr.popCh();
 				}
 				
 				switch (instr.popCh()) {
@@ -682,8 +669,8 @@ Token[] tokenize(string filename) {
 					break;
 					
 					default:
-						toks ~= Token(TokType.IntLiteral, instr.line, last, &instr.text[last], instr.index - last);
 						instr.moveBack(); // Because we have read a character too much.
+						toks ~= Token(TokType.IntLiteral, instr.line, last, &instr.text[last], instr.index - last);
 				}
 			break;
 			
@@ -781,9 +768,9 @@ Token[] tokenize(string filename) {
 						} while (instr.popCh() == '\n');
 						instr.moveBack(); // Because we have read a character too much.
 						
-						toks ~= Token(TokType.Newline, instr.line, instr.index);
-					} else {
-						toks ~= Token(TokType.Whitespace, instr.line, instr.index);
+						// toks ~= Token(TokType.Newline, instr.line, instr.index);
+					// } else {
+						// toks ~= Token(TokType.Whitespace, instr.line, instr.index);
 					}
 				} else if (!ignore) {
 					throw new Exception("Undefinied Token: [" ~ instr.topCh() ~ ']', "", instr.line);
@@ -796,9 +783,6 @@ Token[] tokenize(string filename) {
 }
 
 void main() {
-	// import core.memory : GC;
-	// GC.disable();
-	
 	string filename;
 	version (Test) {
 		filename = "rvalue_ref_model.d";
@@ -808,13 +792,9 @@ void main() {
 	
 	Token[] toks = tokenize(filename);
 	
-	// writeln("Duration: ", sw2.peek().msecs, " msecs lexer.");
-	
-	// foreach (ref Token t; toks) {
-		// if (t.type == TokType.BinaryLiteral) writeln(t.line, ':', t.value());
-		// // version (Test) if (t.type != TokType.Newline && t.type != TokType.Whitespace) writeln(t.type, ':', t.line, ':', t.value());
-		// // version (Test) if (t.type == TokType.WStringLiteral) writeln(t.value);
-	// }
-	
-	// GC.enable();
+	foreach (ref Token t; toks) {
+		if (t.type == TokType.BinaryLiteral) writeln(t.line, ':', t.value());
+		version (Test) if (t.type != TokType.Newline && t.type != TokType.Whitespace) writeln(t.type, ':', t.line, ':', t.value());
+		// version (Test) if (t.type == TokType.WStringLiteral) writeln(t.value);
+	}
 }
