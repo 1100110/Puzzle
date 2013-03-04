@@ -1,7 +1,7 @@
 module Puzzle.Appender;
 
 import core.memory, core.bitop;
-import std.c.string : memcpy, memmove;
+import std.c.string : memcpy;//, memmove;
 import std.traits;
 import std.range : isInputRange;
 import std.exception : enforce;
@@ -46,16 +46,17 @@ public:
 	*/
     void reserve(size_t newCapacity) {
         if (!_data) _data = new Data();
+		
         if (_data.capacity < newCapacity) {
             // need to increase capacity
-            immutable len = _data.arr.length;
+            immutable size_t len = _data.arr.length;
             if (__ctfe) {
                 _data.arr.length = newCapacity;
                 _data.arr = _data.arr[0..len];
                 _data.capacity = newCapacity;
                 return;
             }
-            immutable growsize = (newCapacity - len) * T.sizeof;
+            immutable size_t growsize = (newCapacity - len) * T.sizeof;
             auto u = GC.extend(_data.arr.ptr, growsize, growsize);
             if (u) {
                 // extend worked, update the capacity
@@ -93,13 +94,16 @@ private:
     // ensure we can add nelems elements, resizing as necessary
     void ensureAddable(size_t nelems) {
         if (!_data) _data = new Data();
+		
         immutable len = _data.arr.length;
         immutable reqlen = len + nelems;
+		
         if (reqlen > _data.capacity) {
             if (__ctfe) {
                 _data.arr.length = reqlen;
                 _data.arr = _data.arr[0..len];
                 _data.capacity = reqlen;
+				
                 return;
             }
             // Time to reallocate.
@@ -108,6 +112,7 @@ private:
             auto newlen = newCapacity(reqlen);
             // first, try extending the current block
             auto u = GC.extend(_data.arr.ptr, nelems * T.sizeof, (newlen - len) * T.sizeof);
+			
             if (u) {
                 // extend worked, update the capacity
                 _data.capacity = u / T.sizeof;
@@ -122,16 +127,18 @@ private:
         }
     }
 
-   static size_t newCapacity(size_t newlength) {
+   static size_t newCapacity(size_t newlength) pure nothrow {
         long mult = 100 + (1000L) / (bsr(newlength * T.sizeof) + 1);
         // limit to doubling the length, we don't want to grow too much
-        if(mult > 200) mult = 200;
+        if (mult > 200) mult = 200;
+		
         auto newext = cast(size_t)((newlength * mult + 99) / 100);
+		
         return newext > newlength ? newext : newlength;
     }
 
     template canPutItem(U) {
-        enum bool canPutItem = isImplicitlyConvertible!(U, T) || isSomeChar!T && isSomeChar!U;
+        enum bool canPutItem = isImplicitlyConvertible!(U, T);
     }
 
 public:
@@ -140,9 +147,10 @@ public:
 	*/
     void put(U)(U item) if (canPutItem!U) {
 		ensureAddable(1);
+		
 		immutable len = _data.arr.length;
 		// _data.arr.ptr[len] = cast(Unqual!T) item;
-		memmove(&_data.arr.ptr[len], &item, T.sizeof);
+		memcpy(&_data.arr.ptr[len], &item, T.sizeof);
 		_data.arr = _data.arr.ptr[0 .. len + 1];
     }
 

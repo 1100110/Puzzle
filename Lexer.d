@@ -1,8 +1,7 @@
 module Puzzle.Lexer;
 
-version (all) {
+version (none) {
 	import std.stdio : writeln;
-	import std.datetime : StopWatch;
 }
 
 // import std.algorithm : canFind;
@@ -387,6 +386,7 @@ Token[] tokenize(string filename) {
 	Comment ctype = Comment.None;
 	
 	Appender!(Token[]) toks;
+	toks.reserve(cast(size_t)(instr.text.length * 0.6f));
 	
 	while (!instr.isEof()) {
 		if (ignore && instr.isNext('/')) {
@@ -806,21 +806,15 @@ void main() {
 		filename = "D:/D/dmd2/src/phobos/std/datetime.d";
 	}
 	
-	StopWatch sw;
-	sw.start();
-	
 	Token[] toks = tokenize(filename);
 	
-	sw.stop();
-	
-	writeln("Duration: ", sw.peek().msecs, " msecs total.");
 	// writeln("Duration: ", sw2.peek().msecs, " msecs lexer.");
 	
-	foreach (ref Token t; toks) {
-		if (t.type == TokType.BinaryLiteral) writeln(t.line, ':', t.value());
-		// version (Test) if (t.type != TokType.Newline && t.type != TokType.Whitespace) writeln(t.type, ':', t.line, ':', t.value());
-		// version (Test) if (t.type == TokType.WStringLiteral) writeln(t.value);
-	}
+	// foreach (ref Token t; toks) {
+		// if (t.type == TokType.BinaryLiteral) writeln(t.line, ':', t.value());
+		// // version (Test) if (t.type != TokType.Newline && t.type != TokType.Whitespace) writeln(t.type, ':', t.line, ':', t.value());
+		// // version (Test) if (t.type == TokType.WStringLiteral) writeln(t.value);
+	// }
 	
 	// GC.enable();
 }
