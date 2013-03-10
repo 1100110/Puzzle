@@ -95,6 +95,8 @@ enum TokType {
 	UintLiteral, /// 123u
 	UlongLiteral, /// 123uL
 	CharacterLiteral, /// 'a'
+	DCharacterLiteral, /// w'a'
+	WCharacterLiteral, /// d'a'
 	DStringLiteral, /// $(D_STRING 32-bit character stringd)
 	StringLiteral, /// $(D_STRING an 8-bit string)
 	WStringLiteral, /// $(D_STRING 16-bit character stringw)";
@@ -171,33 +173,33 @@ immutable string[63] tokenValues = [
 
 // lookup table for types
 immutable string[][ubyte.max] types = [
-	//null,
+	//[],
 	["auto"],
 	["bool", "byte"],
 	["cdouble", "cent", "cfloat", "char", "creal"],
 	["dchar", "dstring", "double"],
-	null,
+	[],
 	["float"],
-	null,
-	null, 
+	[],
+	[], 
 	["idouble", "ifloat", "int", "ireal"],
-	null,
-	null,
+	[],
+	[],
 	["long"],
-	null,
-	null,
-	null,
-	null,
-	null,
+	[],
+	[],
+	[],
+	[],
+	[],
 	["real"],
 	["short", "size_t", "string"],
-	null,
+	[],
 	["ubyte", "ucent", "uint", "ulong", "ushort"],
 	["void"],
 	["wchar", "wstring"],
-	null,
-	null,
-	null
+	[],
+	[],
+	[]
 ];
 
 // lookup table for keywords
@@ -210,25 +212,25 @@ immutable string[][ubyte.max] keywords = [
 	["else", "enum", "export", "extern"],
 	["false", "final", "finally", "for", "foreach", "foreach_reverse", "function"],
 	["goto"],
-	null,
+	[],
 	["if", "immutable", "import", "in", "inout", "interface", "invariant", "is"],
-	null,
-	null,
+	[],
+	[],
 	["lazy"],
 	["macro", "mixin", "module"],
-	["new", "nothrow", "null"],
+	["new", "nothrow", "[]"],
 	["out", "override"],
 	["package", "pragma", "private", "protected", "public", "pure"],
-	null,
+	[],
 	["ref", "return"],
 	["scope", "shared", "static", "struct", "super", "switch", "synchronized"],
 	["template", "this", "throw", "true", "try", "typedef", "typeid", "typeof"],
 	["union", "unittest"],
 	["version", "volatile"],
 	["while", "with"],
-	null,
-	null,
-	null
+	[],
+	[],
+	[]
 ];
 
 enum sub = 'a' - 1;
@@ -236,16 +238,16 @@ enum sub = 'a' - 1;
 bool isKeyword(string value) pure nothrow {
 	const ubyte idx = value[0] != '_' ? cast(ubyte)(value[0] - sub) : 0;
 	
-	return keywords[idx] !is null && keywords[idx].canFind(value);
+	return keywords[idx].length != 0 && keywords[idx].canFind(value);
 }
 
 bool isType(string value) pure nothrow {
 	const ubyte idx = cast(ubyte)(value[0] - 'a');
 	
-	return types[idx] !is null && types[idx].canFind(value);
+	return types[idx].length != 0 && types[idx].canFind(value);
 }
 
-bool canFind(immutable string[] values, string value) pure nothrow {
+bool canFind(immutable ref string[] values, string value) pure nothrow {
 	foreach (_val; values) {
 		if (_val == value) return true;
 	}
@@ -255,6 +257,39 @@ bool canFind(immutable string[] values, string value) pure nothrow {
 
 string getTokenValue(TokType type) pure nothrow {
 	return type < tokenValues.length ? tokenValues[type] : null;
+}
+
+enum WD {
+	Char,
+	String
+}
+
+TokType resolveWD(char chS, char chB, WD wd, bool* loop) pure nothrow {
+	switch (chS) {
+		case 'w':
+			return TokType.WStringLiteral;
+			// return wd == WD.String ? TokType.WStringLiteral : TokType.WCharacterLiteral;
+		case 'd':
+			return TokType.DStringLiteral;
+			// return wd == WD.String ? TokType.DStringLiteral : TokType.DCharacterLiteral;
+		case 'r':
+			// assert(wd != WD.Char);
+			return TokType.RegexStringLiteral;
+		default:
+			if (chB == 'w') {
+				*loop = true;
+				goto case 'w';
+			} else if (chB == 'd') {
+				*loop = true;
+				goto case 'd';
+			} else if (chB == 'r') {
+				*loop = true;
+				goto case 'r';
+			}
+			
+			return TokType.StringLiteral;
+			// return wd == WD.String ? TokType.StringLiteral : TokType.CharacterLiteral;
+	}
 }
 
 struct Token {
@@ -371,7 +406,7 @@ Token[] tokenize(string filename) {
 	
 	Comment ctype = Comment.None;
 	
-	Appender!(Token[]) toks;
+	Appender!(Token) toks;
 	toks.reserve(cast(size_t)(instr.text.length * 0.6f));
 	
 	while (!instr.isEof()) {
@@ -414,100 +449,100 @@ Token[] tokenize(string filename) {
 		switch (instr.popCh()) {
 			case '&':
 				switch (instr.popCh()) {
-					case '&': toks ~= Token(TokType.LogicAnd, instr.line, instr.index); break;
-					case '=': toks ~= Token(TokType.BitAndAssign, instr.line, instr.index); break;
+					case '&': toks.put(Token(TokType.LogicAnd, instr.line, instr.index)); break;
+					case '=': toks.put(Token(TokType.BitAndAssign, instr.line, instr.index)); break;
 					default:
 						instr.moveBack(); // Because we have read a character too much.
-						toks ~= Token(TokType.BitAnd, instr.line, instr.index);
+						toks.put(Token(TokType.BitAnd, instr.line, instr.index));
 				}
 			break;
 			
 			case '|':
 				switch (instr.popCh()) {
-					case '|': toks ~= Token(TokType.LogicOr, instr.line, instr.index); break;
-					case '=': toks ~= Token(TokType.BitOrAssign, instr.line, instr.index); break;
+					case '|': toks.put(Token(TokType.LogicOr, instr.line, instr.index)); break;
+					case '=': toks.put(Token(TokType.BitOrAssign, instr.line, instr.index)); break;
 					default:
 						instr.moveBack(); // Because we have read a character too much.
-						toks ~= Token(TokType.BitOr, instr.line, instr.index);
+						toks.put(Token(TokType.BitOr, instr.line, instr.index));
 				}
 			break;
 			
 			case '=':
 				switch (instr.popCh()) {
-					case '>': toks ~= Token(TokType.GoesTo, instr.line, instr.index); break;
-					case '=': toks ~= Token(TokType.Equals, instr.line, instr.index); break;
+					case '>': toks.put(Token(TokType.GoesTo, instr.line, instr.index)); break;
+					case '=': toks.put(Token(TokType.Equals, instr.line, instr.index)); break;
 					default:
 						instr.moveBack(); // Because we have read a character too much.
-						toks ~= Token(TokType.Assign, instr.line, instr.index);
+						toks.put(Token(TokType.Assign, instr.line, instr.index));
 				}
 			break;
 			
 			case '!':
 				if (instr.match('=')) {
-					toks ~= Token(TokType.NotEquals, instr.line, instr.index);
+					toks.put(Token(TokType.NotEquals, instr.line, instr.index));
 				} else {
-					toks ~= Token(TokType.Not, instr.line, instr.index);
+					toks.put(Token(TokType.Not, instr.line, instr.index));
 				}
 			break;
 			
-			case '@': toks ~= Token(TokType.At, instr.line, instr.index); break;
-			case '?': toks ~= Token(TokType.Ternary, instr.line, instr.index); break;
-			case '#': toks ~= Token(TokType.Hash, instr.line, instr.index); break;
-			case '$': toks ~= Token(TokType.Dollar, instr.line, instr.index); break;
+			case '@': toks.put(Token(TokType.At, instr.line, instr.index)); break;
+			case '?': toks.put(Token(TokType.Ternary, instr.line, instr.index)); break;
+			case '#': toks.put(Token(TokType.Hash, instr.line, instr.index)); break;
+			case '$': toks.put(Token(TokType.Dollar, instr.line, instr.index)); break;
 			
-			case ',': toks ~= Token(TokType.Comma, instr.line, instr.index);
-			case ':': toks ~= Token(TokType.Colon, instr.line, instr.index);
-			case ';': toks ~= Token(TokType.Semicolon, instr.line, instr.index);
+			case ',': toks.put(Token(TokType.Comma, instr.line, instr.index)); break;
+			case ':': toks.put(Token(TokType.Colon, instr.line, instr.index)); break;
+			case ';': toks.put(Token(TokType.Semicolon, instr.line, instr.index)); break;
 			
-			case '(': toks ~= Token(TokType.LParen, instr.line, instr.index); break;
-			case ')': toks ~= Token(TokType.RParen, instr.line, instr.index); break;
-			case '[': toks ~= Token(TokType.LBracket, instr.line, instr.index); break;
-			case ']': toks ~= Token(TokType.RBracket, instr.line, instr.index); break;
-			case '{': toks ~= Token(TokType.LBrace, instr.line, instr.index); break;
-			case '}': toks ~= Token(TokType.RBrace, instr.line, instr.index); break;
-			case '\\': toks ~= Token(TokType.Backslash, instr.line, instr.index); break;
+			case '(': toks.put(Token(TokType.LParen, instr.line, instr.index)); break;
+			case ')': toks.put(Token(TokType.RParen, instr.line, instr.index)); break;
+			case '[': toks.put(Token(TokType.LBracket, instr.line, instr.index)); break;
+			case ']': toks.put(Token(TokType.RBracket, instr.line, instr.index)); break;
+			case '{': toks.put(Token(TokType.LBrace, instr.line, instr.index)); break;
+			case '}': toks.put(Token(TokType.RBrace, instr.line, instr.index)); break;
+			case '\\': toks.put(Token(TokType.Backslash, instr.line, instr.index)); break;
 			
 			case '+':
 				switch (instr.popCh()) {
-					case '+': toks ~= Token(TokType.Increment, instr.line, instr.index); break;
-					case '=': toks ~= Token(TokType.PlusAssign, instr.line, instr.index); break;
+					case '+': toks.put(Token(TokType.Increment, instr.line, instr.index)); break;
+					case '=': toks.put(Token(TokType.PlusAssign, instr.line, instr.index)); break;
 					default:
 						instr.moveBack(); // Because we have read a character too much.
-						toks ~= Token(TokType.Plus, instr.line, instr.index);
+						toks.put(Token(TokType.Plus, instr.line, instr.index));
 				}
 			break;
 			
 			case '-':
 				switch (instr.popCh()) {
-					case '-': toks ~= Token(TokType.Decrement, instr.line, instr.index); break;
-					case '=': toks ~= Token(TokType.MinusAssign, instr.line, instr.index); break;
+					case '-': toks.put(Token(TokType.Decrement, instr.line, instr.index)); break;
+					case '=': toks.put(Token(TokType.MinusAssign, instr.line, instr.index)); break;
 					default:
 						instr.moveBack(); // Because we have read a character too much.
-						toks ~= Token(TokType.Minus, instr.line, instr.index);
+						toks.put(Token(TokType.Minus, instr.line, instr.index));
 				}
 			break;
 			
 			case '*':
 				if (instr.match('=')) {
-					toks ~= Token(TokType.MulAssign, instr.line, instr.index);
+					toks.put(Token(TokType.MulAssign, instr.line, instr.index));
 				} else {
-					toks ~= Token(TokType.Star, instr.line, instr.index);
+					toks.put(Token(TokType.Star, instr.line, instr.index));
 				}
 			break;
 			
 			case '/':
 				if (instr.match('=')) {
-					toks ~= Token(TokType.DivAssign, instr.line, instr.index);
+					toks.put(Token(TokType.DivAssign, instr.line, instr.index));
 				} else {
-					toks ~= Token(TokType.Div, instr.line, instr.index);
+					toks.put(Token(TokType.Div, instr.line, instr.index));
 				}
 			break;
 			
 			case '%':
 				if (instr.match('=')) {
-					toks ~= Token(TokType.ModAssign, instr.line, instr.index);
+					toks.put(Token(TokType.ModAssign, instr.line, instr.index));
 				} else {
-					toks ~= Token(TokType.Mod, instr.line, instr.index);
+					toks.put(Token(TokType.Mod, instr.line, instr.index));
 				}
 			break;
 			
@@ -515,77 +550,77 @@ Token[] tokenize(string filename) {
 				switch (instr.popCh()) {
 					case '^': 
 						if (instr.match('=')) {
-							toks ~= Token(TokType.PowAssign, instr.line, instr.index);
+							toks.put(Token(TokType.PowAssign, instr.line, instr.index));
 						} else {
-							toks ~= Token(TokType.Pow, instr.line, instr.index);
+							toks.put(Token(TokType.Pow, instr.line, instr.index));
 						}
 					break;
 					default:
 						instr.moveBack(); // Because we have read a character too much.
 						if (instr.match('=')) {
-							toks ~= Token(TokType.XorAssign, instr.line, instr.index);
+							toks.put(Token(TokType.XorAssign, instr.line, instr.index));
 						} else {
-							toks ~= Token(TokType.Xor, instr.line, instr.index);
+							toks.put(Token(TokType.Xor, instr.line, instr.index));
 						}
 				}
 			break;
 			
 			case '<':
 				switch (instr.popCh()) {
-					case '=': toks ~= Token(TokType.LessEqual, instr.line, instr.index); break;
+					case '=': toks.put(Token(TokType.LessEqual, instr.line, instr.index)); break;
 					case '<':
 						if (instr.match('=')) {
-							toks ~= Token(TokType.ShiftLeftAssign, instr.line, instr.index);
+							toks.put(Token(TokType.ShiftLeftAssign, instr.line, instr.index));
 						} else {
-							toks ~= Token(TokType.ShiftLeft, instr.line, instr.index);
+							toks.put(Token(TokType.ShiftLeft, instr.line, instr.index));
 						}
 					break;
-					case '>': toks ~= Token(TokType.LessOrGreater, instr.line, instr.index); break;
+					case '>': toks.put(Token(TokType.LessOrGreater, instr.line, instr.index)); break;
 					default:
 						instr.moveBack(); // Because we have read a character too much.
-						toks ~= Token(TokType.Less, instr.line, instr.index);
+						toks.put(Token(TokType.Less, instr.line, instr.index));
 				}
 			break;
 			
 			case '>':
 				switch (instr.popCh()) {
-					case '=': toks ~= Token(TokType.GreaterEqual, instr.line, instr.index); break;
+					case '=': toks.put(Token(TokType.GreaterEqual, instr.line, instr.index)); break;
 					case '>':
 						if (instr.match('=')) {
-							toks ~= Token(TokType.ShiftRightAssign, instr.line, instr.index);
+							toks.put(Token(TokType.ShiftRightAssign, instr.line, instr.index));
 						} else if (instr.match('>')) {
 							if (instr.match('=')) {
-								toks ~= Token(TokType.UnsignedShiftRightAssign, instr.line, instr.index);
+								toks.put(Token(TokType.UnsignedShiftRightAssign, instr.line, instr.index));
 							} else {
-								toks ~= Token(TokType.UnsignedShiftRight, instr.line, instr.index);
+								toks.put(Token(TokType.UnsignedShiftRight, instr.line, instr.index));
 							}
 						} else {
-							toks ~= Token(TokType.ShiftRight, instr.line, instr.index);
+							toks.put(Token(TokType.ShiftRight, instr.line, instr.index));
 						}
 					break;
 					default:
 						instr.moveBack(); // Because we have read a character too much.
-						toks ~= Token(TokType.Greater, instr.line, instr.index);
+						toks.put(Token(TokType.Greater, instr.line, instr.index));
 				}
 			break;
 			
 			case '~':
 				if (instr.match('=')) {
-					toks ~= Token(TokType.CatAssign, instr.line, instr.index);
+					toks.put(Token(TokType.CatAssign, instr.line, instr.index));
 				} else {
-					toks ~= Token(TokType.Tilde, instr.line, instr.index);
+					toks.put(Token(TokType.Tilde, instr.line, instr.index));
 				}
 			break;
 			
 			case '.':
 				if (instr.match('.')) {
 					if (instr.match('.')) {
-						toks ~= Token(TokType.VarArg, instr.line, instr.index);
+						toks.put(Token(TokType.VarArg, instr.line, instr.index));
 					} else {
-						toks ~= Token(TokType.Slice, instr.line, instr.index);
+						toks.put(Token(TokType.Slice, instr.line, instr.index));
 					}
 				} else {
-					toks ~= Token(TokType.Dot, instr.line, instr.index);
+					toks.put(Token(TokType.Dot, instr.line, instr.index));
 				}
 			break;
 			
@@ -604,7 +639,7 @@ Token[] tokenize(string filename) {
 						}
 					}
 					
-					toks ~= Token(TokType.HexLiteral, instr.line, last, &instr.text[last], instr.index - last);
+					toks.put(Token(TokType.HexLiteral, instr.line, last, &instr.text[last], instr.index - last));
 					
 					break;
 				}
@@ -621,7 +656,7 @@ Token[] tokenize(string filename) {
 						}
 					}
 					
-					toks ~= Token(TokType.BinaryLiteral, instr.line, last, &instr.text[last], instr.index - last);
+					toks.put(Token(TokType.BinaryLiteral, instr.line, last, &instr.text[last], instr.index - last));
 					
 					break;
 				}
@@ -646,31 +681,31 @@ Token[] tokenize(string filename) {
 						}
 						
 						if (instr.match('f') || instr.match('F')) {
-							toks ~= Token(TokType.FloatLiteral, instr.line, last, &instr.text[last], instr.index - last);
+							toks.put(Token(TokType.FloatLiteral, instr.line, last, &instr.text[last], instr.index - last));
 						} else if (instr.match('l') || instr.match('L')) {
-							toks ~= Token(TokType.RealLiteral, instr.line, last, &instr.text[last], instr.index - last);
+							toks.put(Token(TokType.RealLiteral, instr.line, last, &instr.text[last], instr.index - last));
 						} else {
-							toks ~= Token(TokType.DoubleLiteral, instr.line, last, &instr.text[last], instr.index - last);
+							toks.put(Token(TokType.DoubleLiteral, instr.line, last, &instr.text[last], instr.index - last));
 						}
 					break;
 					
 					case 'l':
 					case 'L':
-						toks ~= Token(TokType.LongLiteral, instr.line, last, &instr.text[last], instr.index - last);
+						toks.put(Token(TokType.LongLiteral, instr.line, last, &instr.text[last], instr.index - last));
 					break;
 					
 					case 'u':
 					case 'U':
 						if (instr.match('l') || instr.match('L')) {
-							toks ~= Token(TokType.UlongLiteral, instr.line, last, &instr.text[last], instr.index - last);
+							toks.put(Token(TokType.UlongLiteral, instr.line, last, &instr.text[last], instr.index - last));
 						} else {
-							toks ~= Token(TokType.UintLiteral, instr.line, last, &instr.text[last], instr.index - last);
+							toks.put(Token(TokType.UintLiteral, instr.line, last, &instr.text[last], instr.index - last));
 						}
 					break;
 					
 					default:
 						instr.moveBack(); // Because we have read a character too much.
-						toks ~= Token(TokType.IntLiteral, instr.line, last, &instr.text[last], instr.index - last);
+						toks.put(Token(TokType.IntLiteral, instr.line, last, &instr.text[last], instr.index - last));
 				}
 			break;
 			
@@ -683,6 +718,15 @@ Token[] tokenize(string filename) {
 				if ((c == 'w' || c == 'd' || c == 'r' || c == 'q') && instr.peekCh() == '"') {
 					instr.popCh(); // pop "
 					goto case '"';
+					// if (instr.peekCh() == '"') {
+						// instr.popCh(); // pop "
+						// goto case '"';
+					// } else if (instr.peekCh() == '\'') {
+						// assert(c != 'r' && c != 'q');
+						
+						// instr.popCh(); // pop '
+						// goto case '\'';
+					// }
 				}
 				
 				while (instr.peekCh().isAlphaNum() || instr.peekCh() == '_') {
@@ -692,58 +736,54 @@ Token[] tokenize(string filename) {
 				
 				id = instr.text[last .. instr.index];
 				if (isType(id)) {
-					toks ~= Token(TokType.Type, instr.line, last, &instr.text[last], instr.index - last);
+					toks.put(Token(TokType.Type, instr.line, last, &instr.text[last], instr.index - last));
 				} else if (isKeyword(id)) {
-					toks ~= Token(TokType.Keyword, instr.line, last, &instr.text[last], instr.index - last);
+					toks.put(Token(TokType.Keyword, instr.line, last, &instr.text[last], instr.index - last));
 				} else {
-					toks ~= Token(TokType.Identifier, instr.line, last, &instr.text[last], instr.index - last);
+					toks.put(Token(TokType.Identifier, instr.line, last, &instr.text[last], instr.index - last));
 				}
 			break;
 			
 			case '`':
 				last = instr.index - 1;
-				while (instr.popCh() != '`') { }
-				
-				toks ~= Token(TokType.RegexStringLiteral, instr.line, last, &instr.text[last], instr.index - last);
-			break;
-			
-			case '\'':
-				char c;
-				if (instr.peekCh() != '\'') {
-					c = instr.popCh();
-				}
-				instr.popCh();
-				
-				toks ~= Token(TokType.CharacterLiteral, instr.line, instr.index, &c);
-			break;
-			
-			case '"':
-				last = instr.index - 1;
-				while (instr.popCh() != '"') {
+				while (instr.popCh() != '`') {
 					if (instr.topCh() == '\n') {
 						instr.line++;
 						instr.match('\r');
 					}
 				}
 				
-				switch (instr.text[last - 1]) {
-					case 'w': toks ~= Token(TokType.WStringLiteral, instr.line, last, &instr.text[last], instr.index - last); break;
-					case 'd': toks ~= Token(TokType.DStringLiteral, instr.line, last, &instr.text[last], instr.index - last); break;
-					case 'r': toks ~= Token(TokType.RegexStringLiteral, instr.line, last, &instr.text[last], instr.index - last); break;
-					default:
-						if (instr.text[instr.index] == 'w') {
-							loop = true;
-							goto case 'w';
-						} else if (instr.text[instr.index] == 'd') {
-							loop = true;
-							goto case 'd';
-						} else if (instr.text[instr.index] == 'r') {
-							loop = true;
-							goto case 'r';
-						}
-						
-						toks ~= Token(TokType.StringLiteral, instr.line, last, &instr.text[last], instr.index - last);
+				toks.put(Token(TokType.RegexStringLiteral, instr.line, last, &instr.text[last], instr.index - last));
+			break;
+			
+			case '\'':
+				last = instr.index - 1;
+				
+				char c;
+				if (instr.peekCh() != '\'') {
+					c = instr.popCh();
 				}
+				instr.popCh();
+				
+				// loop = false;
+				// TokType wdtype = resolveWD(instr.text[last - 1], instr.text[instr.index], WD.Char, &loop);
+				toks.put(Token(TokType.CharacterLiteral, instr.line, instr.index, &c));
+				
+				// if (loop) {
+					// loop = false;
+					// instr.popCh();
+				// }
+			break;
+			
+			case '"':
+				last = instr.index - 1;
+				while (instr.popCh() != '"') {
+					debug if (instr.topCh() == '\n') throw new Exception("WRONG 1.6");
+				}
+				
+				loop = false;
+				TokType wdtype = resolveWD(instr.text[last - 1], instr.text[instr.index], WD.String, &loop);
+				toks.put(Token(wdtype, instr.line, last, &instr.text[last], instr.index - last));
 				
 				if (loop) {
 					loop = false;
@@ -768,9 +808,9 @@ Token[] tokenize(string filename) {
 						} while (instr.popCh() == '\n');
 						instr.moveBack(); // Because we have read a character too much.
 						
-						// toks ~= Token(TokType.Newline, instr.line, instr.index);
+						// toks.put(Token(TokType.Newline, instr.line, instr.index));
 					// } else {
-						// toks ~= Token(TokType.Whitespace, instr.line, instr.index);
+						// toks.put(Token(TokType.Whitespace, instr.line, instr.index));
 					}
 				} else if (!ignore) {
 					throw new Exception("Undefinied Token: [" ~ instr.topCh() ~ ']', "", instr.line);
@@ -782,19 +822,19 @@ Token[] tokenize(string filename) {
 	return toks.data;
 }
 
-void main() {
-	string filename;
-	version (Test) {
-		filename = "rvalue_ref_model.d";
-	} else {
-		filename = "D:/D/dmd2/src/phobos/std/datetime.d";
-	}
+// void main() {
+	// string filename;
+	// version (Test) {
+		// filename = "rvalue_ref_model.d";
+	// } else {
+		// filename = "D:/D/dmd2/src/phobos/std/datetime.d";
+	// }
 	
-	Token[] toks = tokenize(filename);
+	// Token[] toks = tokenize(filename);
 	
-	foreach (ref Token t; toks) {
-		if (t.type == TokType.BinaryLiteral) writeln(t.line, ':', t.value());
-		version (Test) if (t.type != TokType.Newline && t.type != TokType.Whitespace) writeln(t.type, ':', t.line, ':', t.value());
-		// version (Test) if (t.type == TokType.WStringLiteral) writeln(t.value);
-	}
-}
+	// // foreach (ref Token t; toks) {
+		// // if (t.type == TokType.BinaryLiteral) writeln(t.line, ':', t.value());
+		// // version (Test) if (t.type != TokType.Newline && t.type != TokType.Whitespace) writeln(t.type, ':', t.line, ':', t.value, ':', t.pos);
+		// // // version (Test) if (t.type == TokType.WStringLiteral) writeln(t.value);
+	// // }
+// }
