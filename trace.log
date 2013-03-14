@@ -1,0 +1,71 @@
+------------------
+	    1	_D6DLexer5Lexer6__ctorMFAyaZS6DLexer5Lexer
+_D3std3utf15__T8toUTF16zTaZ8toUTF16zFAxaZPxu	1	2393	19
+	    1	_D3std3utf24__T10toUTFzImplTPxuTAxaZ10toUTFzImplFAxaZPxu
+------------------
+	    1	_D3std3utf15__T8toUTF16zTaZ8toUTF16zFAxaZPxu
+_D3std3utf24__T10toUTFzImplTPxuTAxaZ10toUTFzImplFAxaZPxu	1	2374	670
+	    1	_D3std5array17__T8AppenderTAxuZ8Appender6__ctorMFNaNbNcAxuZS3std5array17__T8AppenderTAxuZ8Appender
+	   35	_D3std3utf24__T10toUTFzImplTPxuTAxaZ10toUTFzImplFAxaZPxu17__foreachbody2310MFKwZi
+	    1	_D3std5array17__T8AppenderTAxuZ8Appender13ensureAddableMFkZv
+------------------
+	   35	_D3std3utf24__T10toUTFzImplTPxuTAxaZ10toUTFzImplFAxaZPxu
+_D3std3utf24__T10toUTFzImplTPxuTAxaZ10toUTFzImplFAxaZPxu17__foreachbody2310MFKwZi	35	1638	651
+	   35	_D3std5array17__T8AppenderTAxuZ8Appender10__T3putTwZ3putMFwZv
+------------------
+	    3	_D6DLexer5Lexer6__ctorMFAyaZS6DLexer5Lexer
+_D3std4file15__T8cenforceTbZ8cenforceFbLAxaAyakZb	3	10	10
+------------------
+	    1	_D6DLexer5Lexer6__ctorMFAyaZS6DLexer5Lexer
+_D3std4file15__T8cenforceTiZ8cenforceFiLAxaAyakZi	1	0	0
+------------------
+	   35	_D3std3utf24__T10toUTFzImplTPxuTAxaZ10toUTFzImplFAxaZPxu17__foreachbody2310MFKwZi
+_D3std5array17__T8AppenderTAxuZ8Appender10__T3putTwZ3putMFwZv	35	987	792
+	   35	_D3std5array17__T8AppenderTAxuZ8Appender13ensureAddableMFkZv
+------------------
+	   35	_D3std5array17__T8AppenderTAxuZ8Appender10__T3putTwZ3putMFwZv
+	    1	_D3std3utf24__T10toUTFzImplTPxuTAxaZ10toUTFzImplFAxaZPxu
+_D3std5array17__T8AppenderTAxuZ8Appender13ensureAddableMFkZv	36	200	200
+------------------
+	    1	_D3std3utf24__T10toUTFzImplTPxuTAxaZ10toUTFzImplFAxaZPxu
+_D3std5array17__T8AppenderTAxuZ8Appender6__ctorMFNaNbNcAxuZS3std5array17__T8AppenderTAxuZ8Appender	1	61	61
+------------------
+	    1	_D6DLexer5Lexer6__ctorMFAyaZS6DLexer5Lexer
+_D3std5array29__T18uninitializedArrayTAhTkZ18uninitializedArrayFNaNbkZAh	1	16581	16581
+------------------
+	    1	_D6DLexer5Lexer6__ctorMFAyaZS6DLexer5Lexer
+_D3std9algorithm12__T3minTkTkZ3minFNaNbNfkkZk	1	5	5
+------------------
+	341087	_Dmain
+_D6DLexer5Lexer4scanMFPS6DLexer5TokenZv	341087	862348	862348
+------------------
+	    1	_Dmain
+_D6DLexer5Lexer6__ctorMFAyaZS6DLexer5Lexer	1	52044	33055
+	    1	_D3std3utf15__T8toUTF16zTaZ8toUTF16zFAxaZPxu
+	    3	_D3std4file15__T8cenforceTbZ8cenforceFbLAxaAyakZb
+	    1	_D3std9algorithm12__T3minTkTkZ3minFNaNbNfkkZk
+	    1	_D3std5array29__T18uninitializedArrayTAhTkZ18uninitializedArrayFNaNbkZAh
+	    1	_D3std4file15__T8cenforceTiZ8cenforceFiLAxaAyakZi
+------------------
+_Dmain	0	6267962	5353570
+	    1	_D6DLexer5Lexer6__ctorMFAyaZS6DLexer5Lexer
+	341087	_D6DLexer5Lexer4scanMFPS6DLexer5TokenZv
+
+======== Timer Is 14318180 Ticks/Sec, Times are in Microsecs ========
+
+  Num          Tree        Func        Per
+  Calls        Time        Time        Call
+
+      1      437762      373900      373900     _Dmain
+ 341087       60227       60227           0     void DLexer.Lexer.scan(DLexer.Token*)
+      1        3634        2308        2308     DLexer.Lexer DLexer.Lexer.__ctor(immutable(char)[])
+      1        1158        1158        1158     pure nothrow ubyte[] std.array.uninitializedArray!(ubyte[], uint).uninitializedArray(uint)
+     35          68          55           1     void std.array.Appender!(const(wchar)[]).Appender.put!(dchar).put(dchar)
+      1         165          46          46     const(wchar)* std.utf.toUTFzImpl!(const(wchar)*, const(char)[]).toUTFzImpl(const(char)[])
+     35         114          45           1     const(wchar)* std.utf.toUTFzImpl!(const(wchar)*, const(char)[]).toUTFzImpl(const(char)[]).int __foreachbody2310(ref dchar)
+     36          13          13           0     void std.array.Appender!(const(wchar)[]).Appender.ensureAddable(uint)
+      1           4           4           4     pure nothrow ref std.array.Appender!(const(wchar)[]).Appender std.array.Appender!(const(wchar)[]).Appender.__ctor(const(wchar)[])
+      1         167           1           1     const(wchar)* std.utf.toUTF16z!(char).toUTF16z(const(char)[])
+      3           0           0           0     bool std.file.cenforce!(bool).cenforce(bool, lazy const(char)[], immutable(char)[], uint)
+      1           0           0           0     pure nothrow @safe uint std.algorithm.min!(uint, uint).min(uint, uint)
+      1           0           0           0     int std.file.cenforce!(int).cenforce(int, lazy const(char)[], immutable(char)[], uint)

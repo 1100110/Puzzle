@@ -1,7 +1,6 @@
 module Puzzle.Lexer;
 
-import std.stdio : writeln;
-
+debug import std.stdio : writeln;
 // import std.algorithm : canFind;
 import std.ascii : isDigit, isAlphaNum, isWhite;
 import std.file : read, exists;
@@ -235,19 +234,19 @@ immutable string[][ubyte.max] keywords = [
 
 enum sub = 'a' - 1;
 
-bool isKeyword(string value) pure nothrow {
+private static bool isKeyword(string value) pure nothrow {
 	const ubyte idx = value[0] != '_' ? cast(ubyte)(value[0] - sub) : 0;
 	
 	return keywords[idx].length != 0 && keywords[idx].canFind(value);
 }
 
-bool isType(string value) pure nothrow {
+private static bool isType(string value) pure nothrow {
 	const ubyte idx = cast(ubyte)(value[0] - 'a');
 	
 	return types[idx].length != 0 && types[idx].canFind(value);
 }
 
-bool canFind(immutable ref string[] values, string value) pure nothrow {
+private static bool canFind(immutable ref string[] values, string value) pure nothrow {
 	foreach (_val; values) {
 		if (_val == value) return true;
 	}
@@ -255,7 +254,7 @@ bool canFind(immutable ref string[] values, string value) pure nothrow {
 	return false;
 }
 
-string getTokenValue(TokType type) pure nothrow {
+private static string getTokenValue(TokType type) pure nothrow {
 	return type < tokenValues.length ? tokenValues[type] : null;
 }
 
@@ -264,7 +263,7 @@ enum WD {
 	String
 }
 
-TokType resolveWD(char chS, char chB, WD wd, bool* loop) pure nothrow {
+private static TokType resolveWD(ubyte chS, ubyte chB, WD wd, bool* loop) pure nothrow {
 	switch (chS) {
 		case 'w':
 			return TokType.WStringLiteral;
@@ -313,7 +312,7 @@ public:
 	
 	@property
 	string value() const pure nothrow {
-		return this.ptr is null ? getTokenValue(this.type) : this.ptr[0 .. this.length];
+		return this.ptr is null ? getTokenValue(this.type) : cast(string) this.ptr[0 .. this.length];
 	}
 }
 
@@ -360,8 +359,8 @@ public:
 
     /// Read a character without advancing the index.
     char peekCh() const pure nothrow {
-        // return (this.index < this.text.length) ? this.text[this.index] : '\0';
-		return this.text[this.index];
+        return (this.index < this.text.length) ? this.text[this.index] : '\0';
+		//return this.text[this.index];
     }
 	
 	/// Read the next character without advancing the index.
@@ -407,7 +406,8 @@ Token[] tokenize(string filename) {
 	Comment ctype = Comment.None;
 	
 	Appender!(Token) toks;
-	toks.reserve(cast(size_t)(instr.text.length * 0.6f));
+	toks.reserve(instr.text.length / 2);
+	debug writeln(" => ", toks.capacity);
 	
 	while (!instr.isEof()) {
 		if (ignore && instr.isNext('/')) {
@@ -639,7 +639,8 @@ Token[] tokenize(string filename) {
 						}
 					}
 					
-					toks.put(Token(TokType.HexLiteral, instr.line, last, &instr.text[last], instr.index - last));
+					toks.put(Token(TokType.HexLiteral, instr.line, last,  
+						&instr.text[last], instr.index - last));
 					
 					break;
 				}
@@ -656,16 +657,20 @@ Token[] tokenize(string filename) {
 						}
 					}
 					
-					toks.put(Token(TokType.BinaryLiteral, instr.line, last, &instr.text[last], instr.index - last));
+					toks.put(Token(TokType.BinaryLiteral, instr.line, last, 
+						&instr.text[last], instr.index - last));
 					
 					break;
 				}
 				
 				while (instr.peekCh().isDigit()) {
-					if (instr.peekCh() == '_' && instr.peekNextCh().isDigit()) {
+					if (instr.peekCh() == '_' 
+						&& instr.peekNextCh().isDigit()) 
+					{
 						instr.popCh();
 					}
-					debug if (instr.topCh() == '\n') throw new Exception("WRONG 1.2");
+					debug if (instr.topCh() == '\n')
+						throw new Exception("WRONG 1.2");
 					instr.popCh();
 				}
 				
@@ -674,24 +679,28 @@ Token[] tokenize(string filename) {
 						while (instr.peekCh().isDigit()) {
 							instr.popCh();
 							
-							if (instr.peekCh() == '_' && instr.peekNextCh().isDigit()) {
+							if (instr.peekCh() == '_' && instr.peekNextCh().isDigit())
 								instr.popCh();
-							}
-							debug if (instr.topCh() == '\n') throw new Exception("WRONG 1.3");
+							debug if (instr.topCh() == '\n')
+								throw new Exception("WRONG 1.3");
 						}
 						
 						if (instr.match('f') || instr.match('F')) {
-							toks.put(Token(TokType.FloatLiteral, instr.line, last, &instr.text[last], instr.index - last));
+							toks.put(Token(TokType.FloatLiteral, instr.line, last, 
+								&instr.text[last], instr.index - last));
 						} else if (instr.match('l') || instr.match('L')) {
-							toks.put(Token(TokType.RealLiteral, instr.line, last, &instr.text[last], instr.index - last));
+							toks.put(Token(TokType.RealLiteral, instr.line, last, 
+								&instr.text[last], instr.index - last));
 						} else {
-							toks.put(Token(TokType.DoubleLiteral, instr.line, last, &instr.text[last], instr.index - last));
+							toks.put(Token(TokType.DoubleLiteral, instr.line, last, 
+								&instr.text[last], instr.index - last));
 						}
 					break;
 					
 					case 'l':
 					case 'L':
-						toks.put(Token(TokType.LongLiteral, instr.line, last, &instr.text[last], instr.index - last));
+						toks.put(Token(TokType.LongLiteral, instr.line, last, 
+							&instr.text[last], instr.index - last));
 					break;
 					
 					case 'u':
@@ -731,7 +740,8 @@ Token[] tokenize(string filename) {
 				
 				while (instr.peekCh().isAlphaNum() || instr.peekCh() == '_') {
 					instr.popCh();
-					debug if (instr.topCh() == '\n') throw new Exception("WRONG 1.4");
+					debug if (instr.topCh() == '\n')
+						throw new Exception("WRONG 1.4");
 				}
 				
 				id = instr.text[last .. instr.index];
@@ -760,9 +770,8 @@ Token[] tokenize(string filename) {
 				last = instr.index - 1;
 				
 				char c;
-				if (instr.peekCh() != '\'') {
+				if (instr.peekCh() != '\'')
 					c = instr.popCh();
-				}
 				instr.popCh();
 				
 				// loop = false;
@@ -778,7 +787,8 @@ Token[] tokenize(string filename) {
 			case '"':
 				last = instr.index - 1;
 				while (instr.popCh() != '"') {
-					debug if (instr.topCh() == '\n') throw new Exception("WRONG 1.6");
+					debug if (instr.topCh() == '\n')
+						throw new Exception("WRONG 1.6");
 				}
 				
 				loop = false;
@@ -808,9 +818,9 @@ Token[] tokenize(string filename) {
 						} while (instr.popCh() == '\n');
 						instr.moveBack(); // Because we have read a character too much.
 						
-						// toks.put(Token(TokType.Newline, instr.line, instr.index));
-					// } else {
-						// toks.put(Token(TokType.Whitespace, instr.line, instr.index));
+						toks.put(Token(TokType.Newline, instr.line, instr.index));
+					} else {
+						toks.put(Token(TokType.Whitespace, instr.line, instr.index));
 					}
 				} else if (!ignore) {
 					throw new Exception("Undefinied Token: [" ~ instr.topCh() ~ ']', "", instr.line);
@@ -818,7 +828,7 @@ Token[] tokenize(string filename) {
 			break;
 		}
 	}
-	
+	debug writeln(" => ", toks.capacity, " -> ", toks.length);
 	return toks.data;
 }
 

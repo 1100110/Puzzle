@@ -7,6 +7,7 @@ import std.exception : enforce;
 import std.conv : to;
 
 import Puzzle.Lexer;
+import Puzzle.Appender;
 import Puzzle.Types;
 
 /**
@@ -51,7 +52,7 @@ public:
 		return this.tokens[this.index - 1];
 	}
 	
-	ref const(Token) previous(ubyte num = 2) const pure nothrow {
+	ref const(Token) previous(ubyte num) const pure nothrow {
 		return this.tokens[this.index - num];
 	}
 	
@@ -122,7 +123,7 @@ string resolveOType(TokType type) {
 			return "string";
 		case TokType.WStringLiteral:
 			return "wstring";
-		default: throw new Exception(format("Unknown type: %s", type));
+		default: return "unknown";//throw new Exception(format("Unknown type: %s", type));
 	}
 }
 
@@ -150,10 +151,10 @@ Variable[] searchForParams(size_t* offset, ref const TokStream ts) {
 						i++;
 						isPtr = true;
 					break;
-					/*case TokType.BitAnd:
+					case TokType.BitAnd:
 						i++;
 						isCppRef = true;
-					break;*/
+					break;
 					case TokType.LBracket:
 						i++;
 						for (; ts.tokens[i].type != TokType.RBracket; ++i) {
@@ -202,6 +203,18 @@ Variable[] searchForParams(size_t* offset, ref const TokStream ts) {
 					fparams.back.vattr |= isVarAttribute(ts.tokens[mark].value);
 				}
 				
+				if (isCppRef) {
+					if (fparams.back.vattr & VarAttributes.ref_)
+						throw new Exception("Error with '&' marked parameter can not be ref.");
+					if (!(fparams.back.vattr & VarAttributes.const_)
+						|| !(fparams.back.vattr & VarAttributes.scope_))
+					{
+						throw new Exception("Error with '&' marked parameter require const scope.");
+					}
+					
+					fparams.back.vattr |= VarAttributes.autoRef;
+				}
+				
 				if (ts.tokens[i + 1].type == TokType.Assign) {
 					// ignore default value
 					for (; ts.tokens[i].type != TokType.RParen; ++i) { }
@@ -219,14 +232,31 @@ Variable[] searchForParams(size_t* offset, ref const TokStream ts) {
 	return fparams;
 }
 
+private static bool isNotWhite(ref const Token t) pure nothrow {
+	return t.type != TokType.Whitespace && t.type != TokType.Newline;
+}
+
+Token[] filter(ref const Token[] toks) {
+	Appender!(Token) ftoks;
+	ftoks.reserve(toks.length);
+	
+	foreach (ref const Token tok; toks) {
+		if (isNotWhite(tok))
+			ftoks.put(tok);
+	}
+	
+	return ftoks.data;
+}
+
 void parse(string filename) {
-	Token[] toks = tokenize(filename);
+	const Token[] otoks = tokenize(filename);
+	Token[] toks = filter(otoks);
 	
 	size_t nvars, narrs, nfuncs;
 	
 	TokStream ts = TokStream(toks);
 	
-	Variable[] vars;
+	// Variable[] vars;
 	Function[] funcs;
 	
 	while (!ts.isEof()) {
@@ -237,24 +267,29 @@ void parse(string filename) {
 		Token cur = ts.pop();
 		
 		switch (cur.type) {
+			LCtor:
 			case TokType.Type:
-			// case TokType.Identifier:
+			case TokType.Identifier:
 				Token t = ts.pop();
 				
-				if (t.type == TokType.Identifier && ts.peek().type == TokType.LParen) {
+				const bool possCTor = t.type == TokType.Keyword && t.value == "this";
+				
+				if ((t.type == TokType.Identifier || possCTor) && ts.peek().type == TokType.LParen) {
 					debug writeln("Found function ", t.value, " on line ", t.line, " with type ", cur.value);
 					size_t idx = ts.index;
 					
-					/// ReturnType Attributes
 					VarAttributes returnVattr;
-					for (size_t j = idx - 3; ; j--) {
-						debug writeln(" -> ", ts.tokens[j].value);
-						if (ts.tokens[j].type != TokType.Keyword)
-							break;
-						returnVattr |= isVarAttribute(ts.tokens[j].value);
+					if (!possCTor) {
+						/// ReturnType Attributes
+						for (size_t j = idx - 3; ; j--) {
+							debug writeln(" -> ", ts.tokens[j].value);
+							if (ts.tokens[j].type != TokType.Keyword)
+								break;
+							returnVattr |= isVarAttribute(ts.tokens[j].value);
+						}
+						// if (returnVattr & VarAttributes.none)
+							// returnVattr &= ~VarAttributes.none;
 					}
-					// if (returnVattr & VarAttributes.none)
-						// returnVattr &= ~VarAttributes.none;
 					
 					/// Mögliche Template Parameter
 					string[] params;
@@ -278,16 +313,18 @@ void parse(string filename) {
 					if (ts.tokens[idx + 1].type == TokType.LParen) {
 						debug writeln("TEMPLATE");
 						debug writeln(params);
-						funcs ~= new Function(t.value, t.line, cur.value, params, null);
+						funcs ~= new Function(t.value, t.line, !possCTor ? cur.value : "", params, null);
 						idx += 2;
 						writeln("@LINE #1: ", t.value, ':', t.line);
 						funcs.back.parameters = searchForParams(&idx, ts); ///
 					} else {
-						funcs ~= new Function(t.value, t.line, cur.value, null, null);
+						funcs ~= new Function(t.value, t.line, !possCTor ? cur.value : "", null, null);
 						idx = ts.index;
 						writeln("@LINE #2: ", t.value, ':', t.line);
 						funcs.back.parameters = searchForParams(&idx, ts); ///
 					}
+					
+					ts.move(idx - ts.index);
 					
 					/// Return Type Attributes
 					funcs.back.returnVattr = returnVattr;
@@ -306,66 +343,104 @@ void parse(string filename) {
 					
 					++nfuncs;
 				} else {
-					switch (t.type) {
-						case TokType.LBracket:
-							while (ts.pop().type != TokType.RBracket) { }
+					// switch (t.type) {
+						// case TokType.LBracket:
+							// while (ts.pop().type != TokType.RBracket) { }
 							
-							vars ~= new Variable(ts.pop().value, cur.line, cur.value, false, true);
-							vars.back.vattr = searchForVarAttr(ts, 3);
+							// vars ~= new Variable(ts.pop().value, cur.line, cur.value, false, true);
+							// vars.back.vattr = searchForVarAttr(ts, 3);
 							
-							debug writeln("Array name: ", ts.top().value, " line: ", cur.line, " type: ", cur.value);
-							++narrs;
-						break;
-						case TokType.Identifier:
-							if (cur.value == "auto") {
-								size_t i = ts.index;
-								for (; ts.tokens[i].type != TokType.Assign; ++i) { }
-								// writeln(" -> ", ts.tokens[i + 1].type);
-								const string otype = ts.tokens[i + 1].type == TokType.Identifier ? 
-									ts.tokens[i + 1].value : resolveOType(ts.tokens[i + 1].type);
+							// debug writeln("Array name: ", ts.top().value, " line: ", cur.line, " type: ", cur.value);
+							// ++narrs;
+						// break;
+						// case TokType.Identifier:
+							// if (cur.value == "auto") {
+								// writeln(ts.top().line);
+								// size_t i = ts.index;
+								// for (; ts.tokens[i].type != TokType.Assign; ++i) { }
+								// // writeln(" -> ", ts.tokens[i + 1].type);
+								// string otype;
+								// if (ts.tokens[i + 1].value == "cast") {
+									// i += 3; // jump over current, cast and (
+									// otype = ts.tokens[i].value;
+								// } else {
+									// //ts.tokens[i + 1].type = ... == TokType.Identifier ? ts.tokens[i + 1].value : 
+									// otype = resolveOType(ts.tokens[i + 1].type);
+									// i += 2;
+								// }
 								
-								vars ~= new Variable(t.value, t.line, otype);
-								debug writeln("Variable name: ", t.value, " line: ", t.line, " type: ",otype);
-							} else {
-								vars ~= new Variable(t.value, t.line, cur.value);
-								debug writeln("Variable name: ", t.value, " line: ", t.line, " type: ", cur.value);
-							}
+								// vars ~= new Variable(t.value, t.line, otype != "unknown" ? otype : cur.value);
+								// debug writeln("Variable name: ", t.value, " line: ", t.line, " type: ",otype);
+							// } else {
+								// vars ~= new Variable(t.value, t.line, cur.value);
+								// debug writeln("Variable name: ", t.value, " line: ", t.line, " type: ", cur.value);
+							// }
 							
-							vars.back.vattr = searchForVarAttr(ts, 3);
+							// vars.back.vattr = searchForVarAttr(ts, 3);
 							
-							++nvars;
-						break;
-						case TokType.Star:
-							enforce(ts.pop().type == TokType.Identifier);
+							// ++nvars;
+						// break;
+						// case TokType.Star:
+							// /// FIX bis das aufspühren von alias funktioniert.
+							// if (ts.previous(3).value == "alias" 
+								// || ts.previous(3).value == "typedef")
+							// {
+								// break;
+							// }
 							
-							vars ~= new Variable(t.value, t.line, cur.value, true);
-							vars.back.vattr = searchForVarAttr(ts, 3);
+							// enforce(ts.pop().type == TokType.Identifier);
 							
-							debug writeln("Found pointer variable ", ts.top().value, " on line ", ts.top().line);
-							++nvars;
-						break;
-						default: break;
-					}
+							// vars ~= new Variable(ts.top().value, t.line, cur.value, true);
+							// vars.back.vattr = searchForVarAttr(ts, 3);
+							
+							// debug writeln("Found pointer variable ", ts.top().value, " on line ", ts.top().line);
+							// ++nvars;
+						// break;
+						// default: break;
+					// }
 				}
 			break;
 			
 			case TokType.Keyword:
-				// writeln("Found Keyword: ", ts.top().value);
+				if (cur.value == "this") {
+					ts.moveBack();
+					goto LCtor;
+				}
+				// switch (ts.pop().value) {
+					// case "alias":
+					// case "typedef":
+						// enforce(ts.peek().type == TokType.Identifier);
+						// string v1 = ts.pop().value;
+						// string v2;
+						// if (ts.peek().type == TokType.Assign) {
+							// ts.pop();
+							// enforce(ts.peek().type == TokType.Identifier, ts.peek().value);
+							// v2 = ts.pop().value;
+						// } else {
+							// enforce(ts.peek().type == TokType.Identifier, ts.peek().value);
+							// v2 = ts.pop().value;
+						// }
+						
+						// writeln("Found alias declaration: ", v1, ':', v2);
+					// break;
+					// default: break;
+				// }
 			break;
 			
 			default: break;
 		}
 	}
 	
-	writeln(nvars, " Variables, ", nfuncs, " functions, ", narrs, " Arrays.");
 	
 	writeln("Functions:");
 	foreach (func; funcs)
 		writeln(func.documentString());
 	
-	writeln("Variables:");
-	foreach (var; vars)
-		writeln(var.type, ' ', var.name, ' ', var.getBitSize());
+	// writeln("Variables:");
+	// foreach (var; vars)
+		// writeln(var.type, ' ', var.name, ' ', var.getBitSize());
+	
+	writeln(nvars, " Variables, ", nfuncs, " functions, ", narrs, " Arrays.");
 }
 
 void main() {
