@@ -5,15 +5,15 @@ import std.c.stdlib : malloc, realloc, free;
 import std.c.string : memcpy;
 import core.memory : GC;
 
-static this() {
+shared static this() {
 	GC.disable();
 }
 
-static ~this() {
-	GC.enable();
+shared static ~this() {
+	GC.enable();//why reanable GC here?  It's not like you'll have to worry about it..
 }
 
-size_t max(size_t a, size_t b) pure nothrow {
+T max(T : size_t)(T a, T b) pure nothrow {
 	return a > b ? a : b;
 }
 
